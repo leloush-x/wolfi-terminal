@@ -27,6 +27,7 @@ import com.rk.settings.Settings
 import com.rk.terminal.ui.activities.terminal.MainActivity
 import com.rk.terminal.ui.components.SettingsToggle
 import com.rk.terminal.ui.routes.MainActivityRoutes
+import com.rk.terminal.ui.screens.downloader.WolfiDownloadScreen
 import com.rk.terminal.ui.screens.terminal.CustomSessions
 import com.rk.terminal.ui.screens.terminal.ExecMode
 import com.rk.terminal.ui.screens.terminal.Rootfs
@@ -65,6 +66,7 @@ fun SettingsCard(
 object WorkingMode {
     const val ALPINE = 0
     const val ANDROID = 1
+    const val WOLFI = 2
 }
 
 object InputMode {
@@ -88,6 +90,38 @@ fun Settings(
     var showAddCustomSession by remember { mutableStateOf(false) }
     var defaultIsCustom by remember { mutableStateOf(Settings.default_is_custom) }
     var defaultCustomId by remember { mutableStateOf(CustomSessions.getDefaultId()) }
+    var showWolfiDownloader by remember { mutableStateOf(false) }
+
+    fun selectWolfi() {
+        defaultIsCustom = false
+        Settings.default_is_custom = false
+        selectedWorkingMode = WorkingMode.WOLFI
+        Settings.working_Mode = WorkingMode.WOLFI
+    }
+
+    if (showWolfiDownloader) {
+        WolfiDownloadScreen(
+            modifier = modifier,
+            onCancel = { showWolfiDownloader = false },
+            onComplete = {
+                showWolfiDownloader = false
+                selectWolfi()
+            }
+        )
+        if (showAddCustomSession) {
+            CustomSessionDialog(
+                onDismiss = { showAddCustomSession = false },
+                onSave = { name, shellPath ->
+                    if (name.isNotBlank() && shellPath.isNotBlank()) {
+                        CustomSessions.add(name, shellPath)
+                        customSessions = CustomSessions.getAll()
+                    }
+                    showAddCustomSession = false
+                }
+            )
+        }
+        return
+    }
 
     PreferenceLayout(
         label = stringResource(strings.settings),
@@ -104,6 +138,17 @@ fun Settings(
                 Settings.default_is_custom = false
                 selectedWorkingMode = WorkingMode.ALPINE
                 Settings.working_Mode = WorkingMode.ALPINE
+            }
+            WorkingModeOption(
+                title = "Wolfi",
+                description = stringResource(strings.wolfi_desc),
+                selected = !defaultIsCustom && selectedWorkingMode == WorkingMode.WOLFI
+            ) {
+                if (Rootfs.isWolfiRootfsInstalled(context)) {
+                    selectWolfi()
+                } else {
+                    showWolfiDownloader = true
+                }
             }
             WorkingModeOption(
                 title = "Android",

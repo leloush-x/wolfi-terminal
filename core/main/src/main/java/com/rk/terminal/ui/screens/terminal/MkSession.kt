@@ -7,6 +7,7 @@ import com.rk.libcommons.createFileIfNot
 import com.rk.libcommons.localBinDir
 import com.rk.libcommons.localDir
 import com.rk.libcommons.localLibDir
+import com.rk.libcommons.wolfiHomeDir
 import com.rk.terminal.App.Companion.getTempDir
 import com.rk.terminal.BuildConfig
 import com.rk.terminal.ui.screens.settings.WorkingMode
@@ -36,34 +37,36 @@ object MkSession {
                 "EXTERNAL_STORAGE" to System.getenv("EXTERNAL_STORAGE")
             )
 
-            val workingDir = pendingCommand?.workingDir ?: alpineHomeDir().path
+            val workingDir = pendingCommand?.workingDir ?: if (workingMode == WorkingMode.WOLFI) {
+                wolfiHomeDir().path
+            } else {
+                alpineHomeDir().path
+            }
 
             val useChroot = Rootfs.execMode.value == ExecMode.CHROOT
 
-            val initFile: File = localBinDir().child("init-host")
-            if (initFile.exists().not()) {
-                initFile.createFileIfNot()
-                assets.open("init-host.sh").bufferedReader().use { it.readText() }.let {
-                    initFile.writeText(it)
-                }
-            }
-
-            val initChrootFile: File = localBinDir().child("init-host-chroot")
-            if (useChroot && initChrootFile.exists().not()) {
-                initChrootFile.createFileIfNot()
-                assets.open("init-host-chroot.sh").bufferedReader().use { it.readText() }.let {
-                    initChrootFile.writeText(it)
-                }
-            }
-
-            localBinDir().child("init").apply {
-                if (exists().not()) {
-                    createFileIfNot()
-                    assets.open("init.sh").bufferedReader().use { it.readText() }.let {
-                        writeText(it)
+            fun installAssetBin(name: String, asset: String) {
+                localBinDir().child(name).apply {
+                    if (exists().not()) {
+                        createFileIfNot()
+                        assets.open(asset).bufferedReader().use { it.readText() }.let {
+                            writeText(it)
+                        }
                     }
                 }
             }
+
+            installAssetBin("init-host", "init-host.sh")
+            installAssetBin("init-host-chroot", "init-host-chroot.sh")
+            installAssetBin("init-wolfi-host", "init-wolfi-host.sh")
+            installAssetBin("init-wolfi-host-chroot", "init-wolfi-host-chroot.sh")
+            installAssetBin("init", "init.sh")
+            installAssetBin("init-wolfi", "init-wolfi.sh")
+
+            val initFile: File = localBinDir().child("init-host")
+            val initChrootFile: File = localBinDir().child("init-host-chroot")
+            val initWolfiFile: File = localBinDir().child("init-wolfi-host")
+            val initWolfiChrootFile: File = localBinDir().child("init-wolfi-host-chroot")
 
             localBinDir().child("rm").apply {
                 if (exists().not()) {
@@ -126,6 +129,9 @@ object MkSession {
             val shell = if (pendingCommand == null) {
                 args = if (workingMode == WorkingMode.ALPINE) {
                     val targetInit = if (useChroot) initChrootFile else initFile
+                    arrayOf("-c",targetInit.absolutePath)
+                } else if (workingMode == WorkingMode.WOLFI) {
+                    val targetInit = if (useChroot) initWolfiChrootFile else initWolfiFile
                     arrayOf("-c",targetInit.absolutePath)
                 } else {
                     arrayOf()
@@ -210,9 +216,15 @@ object MkSession {
                     env = null
                 )
             }
-        } else if (workingMode == WorkingMode.ALPINE) {
-            val initFile = context.localBinDir()
-                .child(if (Rootfs.execMode.value == ExecMode.CHROOT) "init-host-chroot" else "init-host")
+        } else if (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI) {
+            val useChroot = Rootfs.execMode.value == ExecMode.CHROOT
+            val binName = when {
+                workingMode == WorkingMode.WOLFI && useChroot -> "init-wolfi-host-chroot"
+                workingMode == WorkingMode.WOLFI -> "init-wolfi-host"
+                useChroot -> "init-host-chroot"
+                else -> "init-host"
+            }
+            val initFile = context.localBinDir().child(binName)
             PendingCommand(
                 shell = "/system/bin/sh",
                 args = arrayOf("-c",initFile.absolutePath,"sh",script.absolutePath),

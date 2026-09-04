@@ -1,16 +1,24 @@
-name: Android CI
+name: Build & Release APK
+
 on:
   push:
     branches:
       - main
-      - dev
     paths-ignore:
       - '**/*.md'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (default: latest, overwrites the same release page)'
+        required: false
+        default: 'latest'
+
+permissions:
+  contents: write
 
 jobs:
   build-release:
-    name: Build Release
+    name: Build & Release
     runs-on: ubuntu-latest
 
     steps:
@@ -22,9 +30,6 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           cache: gradle
-
-      - name: Accept Android SDK licenses
-        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
       - name: Decode and create xed.keystore
         run: |
@@ -46,32 +51,35 @@ jobs:
         run: chmod +x gradlew
 
       - name: Set Commit Hash
-        id: commit_hash
         run: echo "COMMIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
-      - name: Build with Gradle
-        run: ./gradlew assembleRelease && mv app/build/outputs/apk/release/*.apk app/reterminal-${{ env.COMMIT_HASH }}.apk
-        env:
-          KEYSTORE_FILE: /tmp/xed.keystore
-          SIGNING_PROPERTIES_FILE: /tmp/signing.properties
-        continue-on-error: false
+      - name: Build release APK
+        run: ./gradlew assembleRelease --parallel
 
-      - name: Archive APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: Karbon-Release
-          path: app/reterminal-${{ env.COMMIT_HASH }}.apk
+      - name: Rename APK
+        run: mv app/build/outputs/apk/release/*.apk app/reterminal-latest.apk
 
       - name: Delete xed.keystore and signing.properties
-        run: rm /tmp/xed.keystore /tmp/signing.properties
+        run: rm -f /tmp/xed.keystore /tmp/signing.properties
 
-      - name: Send APK to Telegram
+      - name: Publish to rolling release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || 'latest' }}
+          name: 'ReTerminal latest (${{ env.COMMIT_HASH }})'
+          body: |
+            📱 **ReTerminal APK (rolling release)**
+
+            Same page, updated file on every release — just like the rootfs repo.
+
+            - Commit: `${{ env.COMMIT_HASH }}`
+            - Built from: `main` (or manual trigger)
+
+            ### 📥 Download
+
+            | File | Use for |
+            |------|---------|
+            | `reterminal-latest.apk` | Install / update on device |
+          files: app/reterminal-latest.apk
         env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT }}
-        if: ${{ success() && github.event.head_commit.message != '' && env.TELEGRAM_BOT_TOKEN != '' }}
-        run: |
-          curl -X POST "https://api.telegram.org/bot${{ env.TELEGRAM_BOT_TOKEN }}/sendDocument" \
-          -F chat_id="-1002292589492" \
-          -F message_thread_id="116" \
-          -F caption="${{ github.event.head_commit.message }} by ${{ github.actor }}" \
-          -F document=@"app/reterminal-${{ env.COMMIT_HASH }}.apk"
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -36,6 +36,7 @@ object TerminalUtils {
     fun getNameOfWorkingMode(workingMode: Int?): String = when (workingMode) {
         0 -> "alpine"
         1 -> "android"
+        2 -> "wolfi"
         else -> "unknown"
     }
 

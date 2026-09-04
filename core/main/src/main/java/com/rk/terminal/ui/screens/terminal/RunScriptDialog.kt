@@ -65,6 +65,11 @@ fun RunScriptDialog(
                     selected = !selectedIsCustom && selectedMode == WorkingMode.ALPINE
                 ) { select(WorkingMode.ALPINE, null, false) }
                 ScriptSessionOption(
+                    title = "Wolfi",
+                    description = stringResource(strings.wolfi_desc),
+                    selected = !selectedIsCustom && selectedMode == WorkingMode.WOLFI
+                ) { select(WorkingMode.WOLFI, null, false) }
+                ScriptSessionOption(
                     title = "Android",
                     description = stringResource(strings.android_desc),
                     selected = !selectedIsCustom && selectedMode == WorkingMode.ANDROID

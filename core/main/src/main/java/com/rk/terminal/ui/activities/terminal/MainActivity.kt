@@ -26,10 +26,13 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.rk.libcommons.child
 import com.rk.libcommons.localDir
+import com.rk.libcommons.toast
 import com.rk.terminal.ui.navHosts.MainActivityNavHost
 import com.rk.terminal.ui.routes.MainActivityRoutes
+import com.rk.terminal.ui.screens.settings.WorkingMode
 import com.rk.terminal.ui.screens.terminal.CustomSession
 import com.rk.terminal.ui.screens.terminal.MkSession
+import com.rk.terminal.ui.screens.terminal.Rootfs
 import com.rk.terminal.ui.screens.terminal.RunScriptDialog
 import com.rk.terminal.ui.screens.terminal.TerminalBackEnd
 import com.rk.terminal.ui.screens.terminal.TerminalViewModel
@@ -219,6 +222,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun runScript(script: File, mode: Int, custom: CustomSession?) {
+        if (custom == null && mode == WorkingMode.WOLFI && !Rootfs.isWolfiRootfsInstalled(this)) {
+            toast("Download Wolfi first: Settings > Default Working mode > Wolfi")
+            pendingScript = null
+            return
+        }
         val binder = viewModel.sessionBinder ?: return
         val terminal = terminalViewModel.terminalView ?: return
         val client = TerminalBackEnd(terminal, this)

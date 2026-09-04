@@ -33,6 +33,7 @@ import com.rk.resources.strings
 import com.rk.terminal.ui.activities.terminal.MainActivity
 import com.rk.terminal.ui.activities.terminal.MainViewModel
 import com.rk.terminal.ui.components.SetStatusBarTextColor
+import com.rk.terminal.ui.screens.downloader.WolfiDownloadScreen
 import com.rk.terminal.ui.screens.settings.SettingsCard
 import com.rk.terminal.ui.screens.settings.WorkingMode
 import com.rk.terminal.ui.screens.terminal.virtualkeys.VirtualKeysListener
@@ -56,8 +57,24 @@ fun TerminalScreen(
     val configuration = LocalConfiguration.current
     val drawerWidth = (configuration.screenWidthDp * 0.84).dp
     var showAddDialog by remember { mutableStateOf(false) }
+    var showWolfiDownloader by remember { mutableStateOf(false) }
 
     val sessionBinder = mainViewModel.sessionBinder
+
+    if (showWolfiDownloader && sessionBinder != null) {
+        WolfiDownloadScreen(
+            onCancel = { showWolfiDownloader = false },
+            onComplete = {
+                showWolfiDownloader = false
+                val terminal = terminalViewModel.terminalView ?: return@WolfiDownloadScreen
+                val client = TerminalBackEnd(terminal, mainActivity)
+                val sessionId = generateUniqueSessionId(sessionBinder.getService().sessionList.keys.toList())
+                sessionBinder.createSession(sessionId, client, WorkingMode.WOLFI)
+                terminalViewModel.changeSession(context, sessionBinder, sessionId)
+            }
+        )
+        return
+    }
     
     LaunchedEffect(isDarkActive) {
         withContext(Dispatchers.IO) {
@@ -90,6 +107,11 @@ fun TerminalScreen(
         AddSessionDialog(
             onDismiss = { showAddDialog = false },
             onCreateSession = { mode ->
+                if (mode == WorkingMode.WOLFI && !Rootfs.isWolfiRootfsInstalled(context)) {
+                    showAddDialog = false
+                    showWolfiDownloader = true
+                    return@AddSessionDialog
+                }
                 val sessionId = generateUniqueSessionId(sessionBinder.getService().sessionList.keys.toList())
                 val terminal = terminalViewModel.terminalView ?: return@AddSessionDialog
                 val client = TerminalBackEnd(terminal, mainActivity)
@@ -195,6 +217,11 @@ private fun AddSessionDialog(
                 title = { Text("Alpine") },
                 description = { Text(stringResource(strings.alpine_desc)) },
                 onClick = { onCreateSession(WorkingMode.ALPINE) }
+            )
+            SettingsCard(
+                title = { Text("Wolfi") },
+                description = { Text(stringResource(strings.wolfi_desc)) },
+                onClick = { onCreateSession(WorkingMode.WOLFI) }
             )
             SettingsCard(
                 title = { Text("Android") },

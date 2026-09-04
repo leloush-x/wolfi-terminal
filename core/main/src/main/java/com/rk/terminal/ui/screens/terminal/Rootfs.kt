@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.compose.runtime.mutableStateOf
 import com.rk.libcommons.child
 import com.rk.libcommons.localDir
+import com.rk.libcommons.wolfiDir
 import com.rk.settings.Settings
 import java.io.File
 
@@ -35,4 +36,13 @@ object Rootfs {
         val isArchivePresent = context.filesDir.child("alpine.tar.gz").exists()
         return isExtracted || isArchivePresent
     }
+
+    fun isWolfiRootfsInstalled(context: Context): Boolean {
+        val dir: File = context.wolfiDir()
+        val isExtracted = dir.exists() && (dir.list()?.any { it != "root" && it != "tmp" } == true)
+        val isArchivePresent = context.filesDir.child("wolfi.tar.gz").exists()
+        return isExtracted || isArchivePresent
+    }
+
+    fun wolfiArchive(context: Context): File = context.filesDir.child("wolfi.tar.gz")
 }

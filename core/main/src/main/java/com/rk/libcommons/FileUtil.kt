@@ -30,6 +30,22 @@ fun Context.alpineHomeDir(): File {
     }
 }
 
+fun Context.wolfiDir(): File {
+    return localDir().child("wolfi").also {
+        if (!it.exists()) {
+            it.mkdirs()
+        }
+    }
+}
+
+fun Context.wolfiHomeDir(): File {
+    return wolfiDir().child("root").also {
+        if (!it.exists()) {
+            it.mkdirs()
+        }
+    }
+}
+
 fun Context.localBinDir(): File {
     return localDir().child("bin").also {
         if (!it.exists()) {
