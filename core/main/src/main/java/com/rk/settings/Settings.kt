@@ -98,6 +98,11 @@ object Settings {
         get() = Preference.getString(key = "wolfi_version", default = "")
         set(value) = Preference.setString(key = "wolfi_version", value)
 
+    /** Login shell for Linux sessions. Blank = distro default (ash on Alpine, sh on Wolfi). */
+    var login_shell
+        get() = Preference.getString(key = "login_shell", default = "")
+        set(value) = Preference.setString(key = "login_shell", value)
+
     var default_is_custom
         get() = Preference.getBoolean(key = "default_is_custom", default = false)
         set(value) = Preference.setBoolean(key = "default_is_custom", value)

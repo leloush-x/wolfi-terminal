@@ -25,7 +25,13 @@ if [ "$#" -eq 0 ]; then
     if [ -f /initrc ]; then
         source /initrc
     fi
-    /bin/ash
+    : "${LOGIN_SHELL:=/bin/ash}"
+    export SHELL="$LOGIN_SHELL"
+    if [ -x "$LOGIN_SHELL" ]; then
+        exec "$LOGIN_SHELL"
+    else
+        exec /bin/ash
+    fi
 else
     exec "$@"
 fi

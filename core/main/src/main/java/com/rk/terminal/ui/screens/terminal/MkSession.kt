@@ -1,12 +1,15 @@
 package com.rk.terminal.ui.screens.terminal
 
 import android.content.Context
+import com.rk.libcommons.alpineDir
 import com.rk.libcommons.alpineHomeDir
 import com.rk.libcommons.child
 import com.rk.libcommons.createFileIfNot
 import com.rk.libcommons.localBinDir
 import com.rk.libcommons.localDir
 import com.rk.libcommons.localLibDir
+import com.rk.libcommons.toast
+import com.rk.libcommons.wolfiDir
 import com.rk.libcommons.wolfiHomeDir
 import com.rk.terminal.App.Companion.getTempDir
 import com.rk.terminal.BuildConfig
@@ -44,6 +47,16 @@ object MkSession {
             }
 
             val useChroot = Rootfs.execMode.value == ExecMode.CHROOT
+
+            val loginShell = com.rk.settings.Settings.login_shell
+            if (loginShell.isNotBlank() && loginShell.endsWith("bash") &&
+                (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI)
+            ) {
+                val root = if (workingMode == WorkingMode.WOLFI) wolfiDir() else alpineDir()
+                if (!root.child("bin/bash").exists()) {
+                    toast("bash not found — install it first: apk add bash")
+                }
+            }
 
             fun installAssetBin(name: String, asset: String) {
                 // Always refresh: these are app-managed scripts, rewriting
@@ -100,6 +113,7 @@ object MkSession {
                 "PROOT=${applicationInfo.nativeLibraryDir}/libproot.so",
                 "CHROOT=${if (File("/system/bin/chroot").exists()) "/system/bin/chroot" else "/system/xbin/chroot"}",
                 "USE_CHROOT=${if (useChroot) "1" else "0"}",
+                "LOGIN_SHELL=$loginShell",
             )
 
             val loader32 = "${applicationInfo.nativeLibraryDir}/libloader32.so"

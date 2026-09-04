@@ -101,6 +101,7 @@ fun Settings(
     var latestWolfiTag by remember { mutableStateOf<String?>(null) }
     var checkingWolfi by remember { mutableStateOf(false) }
     var wolfiUpdateMsg by remember { mutableStateOf<String?>(null) }
+    var selectedLoginShell by remember { mutableStateOf(Settings.login_shell) }
 
     fun selectWolfi() {
         defaultIsCustom = false
@@ -264,6 +265,33 @@ fun Settings(
                     )
                 }
             }
+        }
+
+        PreferenceGroup(heading = "Login shell") {
+            fun selectShell(value: String) {
+                selectedLoginShell = value
+                Settings.login_shell = value
+            }
+            WorkingModeOption(
+                title = "Distro default",
+                description = "ash on Alpine, sh on Wolfi",
+                selected = selectedLoginShell.isBlank()
+            ) { selectShell("") }
+            WorkingModeOption(
+                title = "bash",
+                description = "/bin/bash (if missing: apk add bash)",
+                selected = selectedLoginShell == "/bin/bash"
+            ) { selectShell("/bin/bash") }
+            WorkingModeOption(
+                title = "sh",
+                description = "/bin/sh",
+                selected = selectedLoginShell == "/bin/sh"
+            ) { selectShell("/bin/sh") }
+            WorkingModeOption(
+                title = "ash",
+                description = "/bin/ash",
+                selected = selectedLoginShell == "/bin/ash"
+            ) { selectShell("/bin/ash") }
         }
 
         PreferenceGroup(heading = stringResource(strings.input_mode)) {

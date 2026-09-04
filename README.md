@@ -23,6 +23,7 @@ Wolfi needs arm64 or x86_64 (no ARM32 — use Alpine on older devices).
 - [x] Wolfi Linux support (glibc, on-demand latest rootfs)
 - [x] Alpine Linux support (bundled)
 - [x] proot (no root) or chroot (rooted, faster) execution modes
+- [x] Configurable login shell (bash / sh / ash, per distro fallback)
 - [x] Configurable Keyboard Shortcuts (Paste, Session Management)
 - [x] Direct script launch (open `.sh` files with the terminal)
 
