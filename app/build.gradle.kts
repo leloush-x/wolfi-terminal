@@ -87,18 +87,18 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
             signingConfig = signingConfigs.getByName("release")
-            resValue("string","app_name","ReTerminal")
+            resValue("string","app_name","Wolfi Terminal")
         }
         debug{
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-DEBUG"
-            resValue("string","app_name","ReTerminal-Debug")
+            resValue("string","app_name","WolfiTerminal-Debug")
         }
     }
 
     
     defaultConfig {
-        applicationId = "com.rk.terminal"
+        applicationId = "com.wolfi.terminal"
         minSdk = 26
         targetSdk = 37
         versionCode = 10

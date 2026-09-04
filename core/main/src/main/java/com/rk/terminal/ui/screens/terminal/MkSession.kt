@@ -179,7 +179,7 @@ object MkSession {
         return PendingCommand(
             shell = shell,
             args = args,
-            workingDir = scriptFile.parentFile?.absolutePath ?: "/sdcard/ReTerminal",
+            workingDir = scriptFile.parentFile?.absolutePath ?: "/sdcard/WolfiTerminal",
             env = null
         )
     }

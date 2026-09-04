@@ -33,7 +33,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "ReTerminal"
+rootProject.name = "WolfiTerminal"
 include(":app")
 include(":core:main")
 

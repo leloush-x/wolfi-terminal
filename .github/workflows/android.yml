@@ -57,7 +57,7 @@ jobs:
         run: ./gradlew assembleRelease --parallel
 
       - name: Rename APK
-        run: mv app/build/outputs/apk/release/*.apk app/reterminal-latest.apk
+        run: mv app/build/outputs/apk/release/*.apk app/wolfi-terminal-latest.apk
 
       - name: Delete xed.keystore and signing.properties
         run: rm -f /tmp/xed.keystore /tmp/signing.properties
@@ -66,20 +66,23 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.tag || 'latest' }}
-          name: 'ReTerminal latest (${{ env.COMMIT_HASH }})'
+          name: 'Wolfi Terminal latest (${{ env.COMMIT_HASH }})'
           body: |
-            📱 **ReTerminal APK (rolling release)**
+            🐺📱 **Wolfi Terminal APK (rolling release)**
 
-            Same page, updated file on every release — just like the rootfs repo.
+            Same page, updated file on every release.
 
             - Commit: `${{ env.COMMIT_HASH }}`
             - Built from: `main` (or manual trigger)
+            - Distros: Wolfi (on-demand download) + Alpine (bundled) + Android shell
 
             ### 📥 Download
 
             | File | Use for |
             |------|---------|
-            | `reterminal-latest.apk` | Install / update on device |
-          files: app/reterminal-latest.apk
+            | `wolfi-terminal-latest.apk` | Install / update on device |
+
+            Direct link: https://github.com/leloush-x/wolfi-terminal/releases/latest/download/wolfi-terminal-latest.apk
+          files: app/wolfi-terminal-latest.apk
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -28,7 +28,7 @@ class AlpineDocumentProvider : DocumentsProvider() {
 
     override fun queryRoots(projection: Array<String>?): Cursor {
         val result = MatrixCursor(projection ?: DEFAULT_ROOT_PROJECTION)
-        val applicationName = "ReTerminal"
+        val applicationName = "Wolfi Terminal"
 
         val row = result.newRow()
         row.add(DocumentsContract.Root.COLUMN_ROOT_ID, getDocIdForFile(baseDir))

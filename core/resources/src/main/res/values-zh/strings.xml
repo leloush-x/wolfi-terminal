@@ -5,7 +5,7 @@
     <string name="use_shizuku_desc">自动执行 rish 命令</string>
     <string name="default_working_mode">默认工作模式</string>
     <string name="alpine_desc">Alpine Linux</string>
-    <string name="android_desc">ReTerminal Android Shell</string>
+    <string name="android_desc">Wolfi Terminal Android Shell</string>
     <string name="customizations">自定义</string>
     <string name="seccomp">SECCOMP</string>
     <string name="seccomp_desc">修复"操作不被允许"错误</string>

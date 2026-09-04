@@ -6,7 +6,7 @@
     <string name="default_working_mode">Default Working mode</string>
     <string name="alpine_desc">Alpine Linux</string>
     <string name="wolfi_desc">Wolfi Linux (glibc)</string>
-    <string name="android_desc">ReTerminal Android shell</string>
+    <string name="android_desc">Wolfi Terminal Android shell</string>
     <string name="customizations">Customizations</string>
     <string name="seccomp">SECCOMP</string>
     <string name="seccomp_desc">fix operation not permitted error</string>
