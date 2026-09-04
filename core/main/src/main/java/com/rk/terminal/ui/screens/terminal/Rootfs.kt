@@ -3,6 +3,7 @@ package com.rk.terminal.ui.screens.terminal
 import android.content.Context
 import androidx.compose.runtime.mutableStateOf
 import com.rk.libcommons.child
+import com.rk.libcommons.localBinDir
 import com.rk.libcommons.localDir
 import com.rk.libcommons.wolfiDir
 import com.rk.settings.Settings
@@ -45,4 +46,18 @@ object Rootfs {
     }
 
     fun wolfiArchive(context: Context): File = context.filesDir.child("wolfi.tar.gz")
+
+    /**
+     * Wipes the extracted Wolfi system (keeps /root home and tmp) plus cached
+     * init scripts, so the next session re-extracts fresh from wolfi.tar.gz.
+     * Call on a background thread after downloading a rootfs update.
+     */
+    fun clearWolfiSystem(context: Context) {
+        context.wolfiDir().listFiles()?.forEach {
+            if (it.name != "root" && it.name != "tmp") it.deleteRecursively()
+        }
+        arrayOf("init-wolfi-host", "init-wolfi-host-chroot", "init-wolfi").forEach {
+            context.localBinDir().child(it).takeIf { f -> f.exists() }?.delete()
+        }
+    }
 }

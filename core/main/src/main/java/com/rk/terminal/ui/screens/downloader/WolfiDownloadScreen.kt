@@ -1,6 +1,5 @@
 package com.rk.terminal.ui.screens.downloader
 
-import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,60 +31,14 @@ import androidx.compose.ui.unit.dp
 import com.rk.libcommons.child
 import com.rk.libcommons.toast
 import com.rk.resources.strings
+import com.rk.settings.Settings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
-
-private const val WOLFI_REPO = "leloush-x/wolfi-os-rootfs"
-private const val WOLFI_API_LATEST = "https://api.github.com/repos/$WOLFI_REPO/releases/latest"
-
-private fun wolfiAssetName(): String {
-    val abi = Build.SUPPORTED_ABIS.firstOrNull {
-        it in listOf("arm64-v8a", "x86_64")
-    } ?: throw RuntimeException("Wolfi does not support ARM32 (armv7). Use Alpine on this device.")
-    return when (abi) {
-        "arm64-v8a" -> "wolfi-rootfs-aarch64.tar.gz"
-        "x86_64" -> "wolfi-rootfs-x86_64.tar.gz"
-        else -> throw RuntimeException("Unsupported ABI: $abi")
-    }
-}
-
-private fun fetchLatestAssetUrl(assetName: String): Pair<String, String> {
-    var conn: HttpURLConnection? = null
-    try {
-        conn = (URL(WOLFI_API_LATEST).openConnection() as HttpURLConnection).apply {
-            requestMethod = "GET"
-            setRequestProperty("User-Agent", "ReTerminal")
-            setRequestProperty("Accept", "application/vnd.github+json")
-            connectTimeout = 15000
-            readTimeout = 15000
-        }
-        if (conn.responseCode != HttpURLConnection.HTTP_OK) {
-            throw RuntimeException("GitHub API: HTTP ${conn.responseCode}")
-        }
-        val body = conn.inputStream.bufferedReader().use { it.readText() }
-        val json = JSONObject(body)
-        val tag = json.optString("tag_name", "latest").ifBlank { "latest" }
-        val assets = json.optJSONArray("assets")
-        if (assets != null) {
-            for (i in 0 until assets.length()) {
-                val obj = assets.getJSONObject(i)
-                if (obj.optString("name") == assetName) {
-                    val url = obj.optString("browser_download_url")
-                    if (url.isNotBlank()) return tag to url
-                }
-            }
-        }
-        throw RuntimeException("Asset $assetName not found in latest release ($tag)")
-    } finally {
-        conn?.disconnect()
-    }
-}
 
 @Composable
 fun WolfiDownloadScreen(
@@ -116,11 +69,10 @@ fun WolfiDownloadScreen(
                     progress = 0f
                     statusText = installingStr
                 }
-                val assetName = wolfiAssetName()
                 withContext(Dispatchers.Main) {
                     statusText = "Resolving latest Wolfi release…"
                 }
-                val (tag, url) = fetchLatestAssetUrl(assetName)
+                val (tag, url) = WolfiRepo.fetchLatest()
                 withContext(Dispatchers.Main) {
                     versionTag = tag
                     statusText = "Downloading Wolfi $tag…"
@@ -130,7 +82,7 @@ fun WolfiDownloadScreen(
                 downloadState.connection?.disconnect()
                 val conn = (URL(url).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
-                    setRequestProperty("User-Agent", "ReTerminal")
+                    setRequestProperty("User-Agent", "WolfiTerminal")
                     connectTimeout = 15000
                     readTimeout = 30000
                     instanceFollowRedirects = true
@@ -173,6 +125,7 @@ fun WolfiDownloadScreen(
                 }
                 withContext(Dispatchers.Main) {
                     progress = 1f
+                    Settings.wolfi_version = tag
                     onComplete()
                 }
             } catch (e: InterruptedException) {

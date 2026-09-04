@@ -10,9 +10,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.rk.components.compose.preferences.base.PreferenceGroup
 import com.rk.libcommons.*
 import com.rk.resources.strings
+import com.rk.settings.Settings
 import com.rk.terminal.ui.activities.terminal.MainActivity
+import com.rk.terminal.ui.screens.settings.SettingsCard
+import com.rk.terminal.ui.screens.settings.WorkingMode
 import com.rk.terminal.ui.screens.terminal.ExecMode
 import com.rk.terminal.ui.screens.terminal.Rootfs
 import com.rk.terminal.ui.screens.terminal.TerminalScreen
@@ -50,12 +54,33 @@ fun SetupScreen(
     var showExecModeDialog by remember { mutableStateOf(false) }
     var extractionStarted by remember { mutableStateOf(false) }
 
+    // First-launch distro picker state. Old installs already have a rootfs,
+    // so they skip the chooser and follow the original Alpine flow.
+    val alpinePresent = remember { Rootfs.isRootfsInstalled(context) }
+    val wolfiPresent = remember { Rootfs.isWolfiRootfsInstalled(context) }
+    val needsChoice = !alpinePresent && !wolfiPresent
+    var distroChoice by remember {
+        mutableIntStateOf(
+            if (Settings.working_Mode == WorkingMode.WOLFI) WorkingMode.WOLFI else WorkingMode.ALPINE
+        )
+    }
+    var choiceMade by remember { mutableStateOf(!needsChoice) }
+    var wolfiDone by remember { mutableStateOf(wolfiPresent) }
+
+    fun startAlpineInstall() {
+        if (isSetupComplete) {
+            Rootfs.isInstalled.value = true
+        } else {
+            extractionStarted = true
+        }
+    }
+
     LaunchedEffect(Unit) {
         if (Rootfs.execMode.value != null) {
             rootChecked = true
-            if (isSetupComplete) {
+            if (isSetupComplete || (wolfiPresent && Settings.working_Mode == WorkingMode.WOLFI)) {
                 Rootfs.isInstalled.value = true
-            } else {
+            } else if (!needsChoice) {
                 extractionStarted = true
             }
             return@LaunchedEffect
@@ -71,7 +96,7 @@ fun SetupScreen(
                     Rootfs.setExecMode(ExecMode.PROOT)
                     if (isSetupComplete) {
                         Rootfs.isInstalled.value = true
-                    } else {
+                    } else if (!needsChoice) {
                         extractionStarted = true
                     }
                 }
@@ -92,7 +117,7 @@ fun SetupScreen(
                     showExecModeDialog = false
                     if (isSetupComplete) {
                         Rootfs.isInstalled.value = true
-                    } else {
+                    } else if (!needsChoice) {
                         extractionStarted = true
                     }
                 }) { Text("Chroot") }
@@ -103,7 +128,7 @@ fun SetupScreen(
                     showExecModeDialog = false
                     if (isSetupComplete) {
                         Rootfs.isInstalled.value = true
-                    } else {
+                    } else if (!needsChoice) {
                         extractionStarted = true
                     }
                 }) { Text("Proot") }
@@ -147,25 +172,94 @@ fun SetupScreen(
         }
     }
 
-    val ready = isSetupComplete && Rootfs.execMode.value != null
+    val distroReady = (distroChoice == WorkingMode.WOLFI && wolfiDone) ||
+        (distroChoice != WorkingMode.WOLFI && isSetupComplete)
+    val ready = distroReady && Rootfs.execMode.value != null
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         if (!ready) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (error != null) {
+            when {
+                error != null -> {
                     Text("Setup Failed: $error", color = MaterialTheme.colorScheme.error)
-                } else if (!rootChecked) {
-                    Text("Checking root access...", style = MaterialTheme.typography.bodyLarge)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    CircularProgressIndicator()
-                } else if (!showExecModeDialog) {
-                    Text(installingStr, style = MaterialTheme.typography.bodyLarge)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    CircularProgressIndicator()
+                }
+                !rootChecked -> {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Checking root access...", style = MaterialTheme.typography.bodyLarge)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        CircularProgressIndicator()
+                    }
+                }
+                showExecModeDialog -> {
+                    // Dialog above handles this state; nothing else to show.
+                }
+                needsChoice && !choiceMade -> {
+                    DistroChooser(
+                        onPickAlpine = {
+                            distroChoice = WorkingMode.ALPINE
+                            Settings.default_is_custom = false
+                            Settings.working_Mode = WorkingMode.ALPINE
+                            choiceMade = true
+                            startAlpineInstall()
+                        },
+                        onPickWolfi = {
+                            distroChoice = WorkingMode.WOLFI
+                            choiceMade = true
+                        }
+                    )
+                }
+                distroChoice == WorkingMode.WOLFI && !wolfiDone -> {
+                    WolfiDownloadScreen(
+                        onCancel = { choiceMade = false },
+                        onComplete = {
+                            wolfiDone = true
+                            Settings.default_is_custom = false
+                            Settings.working_Mode = WorkingMode.WOLFI
+                            Rootfs.isInstalled.value = true
+                        }
+                    )
+                }
+                else -> {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(installingStr, style = MaterialTheme.typography.bodyLarge)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        CircularProgressIndicator()
+                    }
                 }
             }
         } else {
             TerminalScreen(mainActivity = mainActivity, navController = navController)
+        }
+    }
+}
+
+@Composable
+private fun DistroChooser(
+    onPickAlpine: () -> Unit,
+    onPickWolfi: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Choose your Linux", style = MaterialTheme.typography.headlineSmall)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            "This will be your default. You can change it later in Settings.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        PreferenceGroup {
+            SettingsCard(
+                title = { Text("Wolfi") },
+                description = { Text(stringResource(strings.wolfi_desc)) },
+                onClick = onPickWolfi
+            )
+            SettingsCard(
+                title = { Text("Alpine") },
+                description = { Text(stringResource(strings.alpine_desc)) },
+                onClick = onPickAlpine
+            )
         }
     }
 }

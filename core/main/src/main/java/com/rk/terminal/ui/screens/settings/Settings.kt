@@ -19,15 +19,20 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.navigation.NavController
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.rk.components.compose.preferences.base.PreferenceGroup
 import com.rk.components.compose.preferences.base.PreferenceLayout
 import com.rk.components.compose.preferences.base.PreferenceTemplate
+import com.rk.libcommons.toast
 import com.rk.resources.strings
 import com.rk.settings.Settings
 import com.rk.terminal.ui.activities.terminal.MainActivity
 import com.rk.terminal.ui.components.SettingsToggle
 import com.rk.terminal.ui.routes.MainActivityRoutes
 import com.rk.terminal.ui.screens.downloader.WolfiDownloadScreen
+import com.rk.terminal.ui.screens.downloader.WolfiRepo
 import com.rk.terminal.ui.screens.terminal.CustomSessions
 import com.rk.terminal.ui.screens.terminal.ExecMode
 import com.rk.terminal.ui.screens.terminal.Rootfs
@@ -91,6 +96,11 @@ fun Settings(
     var defaultIsCustom by remember { mutableStateOf(Settings.default_is_custom) }
     var defaultCustomId by remember { mutableStateOf(CustomSessions.getDefaultId()) }
     var showWolfiDownloader by remember { mutableStateOf(false) }
+    val wolfiScope = rememberCoroutineScope()
+    var wolfiVer by remember { mutableStateOf(Settings.wolfi_version) }
+    var latestWolfiTag by remember { mutableStateOf<String?>(null) }
+    var checkingWolfi by remember { mutableStateOf(false) }
+    var wolfiUpdateMsg by remember { mutableStateOf<String?>(null) }
 
     fun selectWolfi() {
         defaultIsCustom = false
@@ -106,6 +116,17 @@ fun Settings(
             onComplete = {
                 showWolfiDownloader = false
                 selectWolfi()
+                wolfiScope.launch(Dispatchers.IO) {
+                    // Fresh system files from the new tarball on next session.
+                    // Keeps /root home. Running Wolfi sessions must be restarted.
+                    Rootfs.clearWolfiSystem(context)
+                    withContext(Dispatchers.Main) {
+                        wolfiVer = Settings.wolfi_version
+                        latestWolfiTag = Settings.wolfi_version.ifBlank { null }
+                        wolfiUpdateMsg = "Updated — restart Wolfi sessions to use it"
+                        toast("Wolfi updated — restart Wolfi sessions")
+                    }
+                }
             }
         )
         if (showAddCustomSession) {
@@ -182,6 +203,66 @@ fun Settings(
             ExecModeOption("Proot", "No root required, slightly slower", ExecMode.PROOT, selectedExecMode) {
                 selectedExecMode = it
                 Rootfs.setExecMode(it)
+            }
+        }
+
+        PreferenceGroup(heading = "Wolfi updates") {
+            val wolfiInstalled = Rootfs.isWolfiRootfsInstalled(context)
+            SettingsCard(
+                title = {
+                    Text(
+                        "Installed: ${
+                            wolfiVer.ifBlank {
+                                if (wolfiInstalled) "unknown version" else "not installed"
+                            }
+                        }"
+                    )
+                },
+                description = {
+                    Text(
+                        latestWolfiTag?.let { "Latest release: $it" }
+                            ?: (wolfiUpdateMsg ?: "Wolfi Linux rootfs")
+                    )
+                },
+                onClick = {}
+            )
+            if (wolfiInstalled) {
+                SettingsCard(
+                    title = { Text(if (checkingWolfi) "Checking…" else "Check for updates") },
+                    onClick = {
+                        if (checkingWolfi) return@SettingsCard
+                        checkingWolfi = true
+                        wolfiUpdateMsg = null
+                        wolfiScope.launch(Dispatchers.IO) {
+                            try {
+                                val latest = WolfiRepo.fetchLatest()
+                                withContext(Dispatchers.Main) {
+                                    checkingWolfi = false
+                                    latestWolfiTag = latest.first
+                                    wolfiUpdateMsg =
+                                        if (wolfiVer.isBlank() || wolfiVer != latest.first) {
+                                            "Update available: ${latest.first}"
+                                        } else {
+                                            "Up to date (${latest.first})"
+                                        }
+                                }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) {
+                                    checkingWolfi = false
+                                    wolfiUpdateMsg = "Check failed: ${e.message}"
+                                }
+                            }
+                        }
+                    },
+                    isEnabled = !checkingWolfi
+                )
+                if (latestWolfiTag != null && (wolfiVer.isBlank() || wolfiVer != latestWolfiTag)) {
+                    SettingsCard(
+                        title = { Text("Download update ($latestWolfiTag)") },
+                        description = { Text("Replaces system files, keeps /root home. Restart Wolfi sessions after.") },
+                        onClick = { showWolfiDownloader = true }
+                    )
+                }
             }
         }
 

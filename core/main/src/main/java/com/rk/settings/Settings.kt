@@ -94,6 +94,10 @@ object Settings {
         get() = Preference.getInt(key = "exec_mode", default = -1)
         set(value) = Preference.setInt(key = "exec_mode", value)
 
+    var wolfi_version
+        get() = Preference.getString(key = "wolfi_version", default = "")
+        set(value) = Preference.setString(key = "wolfi_version", value)
+
     var default_is_custom
         get() = Preference.getBoolean(key = "default_is_custom", default = false)
         set(value) = Preference.setBoolean(key = "default_is_custom", value)

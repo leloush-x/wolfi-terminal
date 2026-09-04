@@ -46,12 +46,12 @@ object MkSession {
             val useChroot = Rootfs.execMode.value == ExecMode.CHROOT
 
             fun installAssetBin(name: String, asset: String) {
+                // Always refresh: these are app-managed scripts, rewriting
+                // propagates fixes (e.g. new rootfs handling) to existing installs.
                 localBinDir().child(name).apply {
-                    if (exists().not()) {
-                        createFileIfNot()
-                        assets.open(asset).bufferedReader().use { it.readText() }.let {
-                            writeText(it)
-                        }
+                    createFileIfNot()
+                    assets.open(asset).bufferedReader().use { it.readText() }.let {
+                        writeText(it)
                     }
                 }
             }
