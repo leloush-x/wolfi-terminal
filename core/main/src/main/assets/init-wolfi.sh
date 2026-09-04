@@ -27,6 +27,9 @@ if [ "$#" -eq 0 ]; then
     if [ -f /initrc ]; then
         source /initrc
     fi
+    if [ -f "$HOME/.profile" ]; then
+        source "$HOME/.profile"
+    fi
     : "${LOGIN_SHELL:=/bin/sh}"
     export SHELL="$LOGIN_SHELL"
     if [ -x "$LOGIN_SHELL" ]; then
