@@ -31,6 +31,7 @@ import com.rk.settings.Settings
 import com.rk.terminal.ui.activities.terminal.MainActivity
 import com.rk.terminal.ui.components.SettingsToggle
 import com.rk.terminal.ui.routes.MainActivityRoutes
+import com.rk.terminal.ui.screens.downloader.AlpineSetupScreen
 import com.rk.terminal.ui.screens.downloader.WolfiDownloadScreen
 import com.rk.terminal.ui.screens.downloader.WolfiRepo
 import com.rk.terminal.ui.screens.terminal.CustomSessions
@@ -96,6 +97,7 @@ fun Settings(
     var defaultIsCustom by remember { mutableStateOf(Settings.default_is_custom) }
     var defaultCustomId by remember { mutableStateOf(CustomSessions.getDefaultId()) }
     var showWolfiDownloader by remember { mutableStateOf(false) }
+    var showAlpineSetup by remember { mutableStateOf(false) }
     val wolfiScope = rememberCoroutineScope()
     var wolfiVer by remember { mutableStateOf(Settings.wolfi_version) }
     var latestWolfiTag by remember { mutableStateOf<String?>(null) }
@@ -110,26 +112,45 @@ fun Settings(
         Settings.working_Mode = WorkingMode.WOLFI
     }
 
-    if (showWolfiDownloader) {
-        WolfiDownloadScreen(
-            modifier = modifier,
-            onCancel = { showWolfiDownloader = false },
-            onComplete = {
-                showWolfiDownloader = false
-                selectWolfi()
-                wolfiScope.launch(Dispatchers.IO) {
-                    // Fresh system files from the new tarball on next session.
-                    // Keeps /root home. Running Wolfi sessions must be restarted.
-                    Rootfs.clearWolfiSystem(context)
-                    withContext(Dispatchers.Main) {
-                        wolfiVer = Settings.wolfi_version
-                        latestWolfiTag = Settings.wolfi_version.ifBlank { null }
-                        wolfiUpdateMsg = "Updated — restart Wolfi sessions to use it"
-                        toast("Wolfi updated — restart Wolfi sessions")
+    fun selectAlpine() {
+        defaultIsCustom = false
+        Settings.default_is_custom = false
+        selectedWorkingMode = WorkingMode.ALPINE
+        Settings.working_Mode = WorkingMode.ALPINE
+    }
+
+    if (showWolfiDownloader || showAlpineSetup) {
+        if (showWolfiDownloader) {
+            WolfiDownloadScreen(
+                modifier = modifier,
+                onCancel = { showWolfiDownloader = false },
+                onComplete = {
+                    showWolfiDownloader = false
+                    selectWolfi()
+                    wolfiScope.launch(Dispatchers.IO) {
+                        // Fresh system files from the new tarball on next session.
+                        // Keeps /root home. Running Wolfi sessions must be restarted.
+                        Rootfs.clearWolfiSystem(context)
+                        withContext(Dispatchers.Main) {
+                            wolfiVer = Settings.wolfi_version
+                            latestWolfiTag = Settings.wolfi_version.ifBlank { null }
+                            wolfiUpdateMsg = "Updated — restart Wolfi sessions to use it"
+                            toast("Wolfi updated — restart Wolfi sessions")
+                        }
                     }
                 }
-            }
-        )
+            )
+        }
+        if (showAlpineSetup) {
+            AlpineSetupScreen(
+                modifier = modifier,
+                onCancel = { showAlpineSetup = false },
+                onComplete = {
+                    showAlpineSetup = false
+                    selectAlpine()
+                }
+            )
+        }
         if (showAddCustomSession) {
             CustomSessionDialog(
                 onDismiss = { showAddCustomSession = false },
@@ -156,10 +177,11 @@ fun Settings(
                 description = stringResource(strings.alpine_desc),
                 selected = !defaultIsCustom && selectedWorkingMode == WorkingMode.ALPINE
             ) {
-                defaultIsCustom = false
-                Settings.default_is_custom = false
-                selectedWorkingMode = WorkingMode.ALPINE
-                Settings.working_Mode = WorkingMode.ALPINE
+                if (Rootfs.isRootfsInstalled(context)) {
+                    selectAlpine()
+                } else {
+                    showAlpineSetup = true
+                }
             }
             WorkingModeOption(
                 title = "Wolfi",

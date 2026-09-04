@@ -227,6 +227,11 @@ class MainActivity : ComponentActivity() {
             pendingScript = null
             return
         }
+        if (custom == null && mode == WorkingMode.ALPINE && !Rootfs.isRootfsInstalled(this)) {
+            toast("Set up Alpine first: Settings > Default Working mode > Alpine")
+            pendingScript = null
+            return
+        }
         val binder = viewModel.sessionBinder ?: return
         val terminal = terminalViewModel.terminalView ?: return
         val client = TerminalBackEnd(terminal, this)

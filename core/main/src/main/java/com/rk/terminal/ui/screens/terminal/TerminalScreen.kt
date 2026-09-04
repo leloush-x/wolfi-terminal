@@ -33,6 +33,7 @@ import com.rk.resources.strings
 import com.rk.terminal.ui.activities.terminal.MainActivity
 import com.rk.terminal.ui.activities.terminal.MainViewModel
 import com.rk.terminal.ui.components.SetStatusBarTextColor
+import com.rk.terminal.ui.screens.downloader.AlpineSetupScreen
 import com.rk.terminal.ui.screens.downloader.WolfiDownloadScreen
 import com.rk.terminal.ui.screens.settings.SettingsCard
 import com.rk.terminal.ui.screens.settings.WorkingMode
@@ -58,6 +59,7 @@ fun TerminalScreen(
     val drawerWidth = (configuration.screenWidthDp * 0.84).dp
     var showAddDialog by remember { mutableStateOf(false) }
     var showWolfiDownloader by remember { mutableStateOf(false) }
+    var showAlpineSetup by remember { mutableStateOf(false) }
 
     val sessionBinder = mainViewModel.sessionBinder
 
@@ -70,6 +72,21 @@ fun TerminalScreen(
                 val client = TerminalBackEnd(terminal, mainActivity)
                 val sessionId = generateUniqueSessionId(sessionBinder.getService().sessionList.keys.toList())
                 sessionBinder.createSession(sessionId, client, WorkingMode.WOLFI)
+                terminalViewModel.changeSession(context, sessionBinder, sessionId)
+            }
+        )
+        return
+    }
+
+    if (showAlpineSetup && sessionBinder != null) {
+        AlpineSetupScreen(
+            onCancel = { showAlpineSetup = false },
+            onComplete = {
+                showAlpineSetup = false
+                val terminal = terminalViewModel.terminalView ?: return@AlpineSetupScreen
+                val client = TerminalBackEnd(terminal, mainActivity)
+                val sessionId = generateUniqueSessionId(sessionBinder.getService().sessionList.keys.toList())
+                sessionBinder.createSession(sessionId, client, WorkingMode.ALPINE)
                 terminalViewModel.changeSession(context, sessionBinder, sessionId)
             }
         )
@@ -110,6 +127,11 @@ fun TerminalScreen(
                 if (mode == WorkingMode.WOLFI && !Rootfs.isWolfiRootfsInstalled(context)) {
                     showAddDialog = false
                     showWolfiDownloader = true
+                    return@AddSessionDialog
+                }
+                if (mode == WorkingMode.ALPINE && !Rootfs.isRootfsInstalled(context)) {
+                    showAddDialog = false
+                    showAlpineSetup = true
                     return@AddSessionDialog
                 }
                 val sessionId = generateUniqueSessionId(sessionBinder.getService().sessionList.keys.toList())
