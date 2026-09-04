@@ -20,6 +20,8 @@ import com.termux.terminal.TerminalSessionClient
 import java.io.File
 
 object MkSession {
+    private var warnedMissingBash = false
+
     fun createSession(
         context: Context,
         sessionClient: TerminalSessionClient,
@@ -50,10 +52,12 @@ object MkSession {
 
             val loginShell = com.rk.settings.Settings.login_shell
             if (loginShell.isNotBlank() && loginShell.endsWith("bash") &&
-                (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI)
+                (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI) &&
+                !warnedMissingBash
             ) {
                 val root = if (workingMode == WorkingMode.WOLFI) wolfiDir() else alpineDir()
                 if (!root.child("bin/bash").exists()) {
+                    warnedMissingBash = true
                     toast("bash not found — install it first: apk add bash")
                 }
             }
