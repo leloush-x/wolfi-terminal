@@ -35,12 +35,11 @@ Direct download: https://github.com/leloush-x/wolfi-terminal/releases/latest/dow
 
 <div>
   <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/01.png" width="32%" />
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/02.jpg" width="32%" />
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/03.jpg" width="32%" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/02.png" width="32%" />
 </div>
 <div>
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/04.jpg" width="32%" />
-  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/05.png" width="32%" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/03.png" width="32%" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/04.png" width="32%" />
 </div>
 
 ## Build
@@ -55,7 +54,7 @@ CI builds and publishes to the rolling `latest` release on every push to `main` 
 ## Credits
 
 - [ReTerminal](https://github.com/RohitKushvaha01/ReTerminal) — base app
-- [Wolfi](https://github.com/wolfi-dev/os) via [wolfi-os-rootfs](https://github.com/leloush-x/wolfi-os-rootfs) — Wolfi rootfs builds
+- [Wolfi](https://github.com/leloush-x) via [wolfi-os-rootfs](https://github.com/leloush-x/wolfi-os-rootfs) — Wolfi rootfs builds
 - [Termux](https://github.com/termux/termux-app) — TerminalView / Terminal Emulator
 
 ## License
