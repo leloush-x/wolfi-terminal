@@ -28,6 +28,7 @@ import com.rk.components.compose.preferences.base.PreferenceTemplate
 import com.rk.libcommons.toast
 import com.rk.resources.strings
 import com.rk.settings.Settings
+import com.rk.terminal.root.SheveryManager
 import com.rk.terminal.ui.activities.terminal.MainActivity
 import com.rk.terminal.ui.components.SettingsToggle
 import com.rk.terminal.ui.routes.MainActivityRoutes
@@ -104,6 +105,11 @@ fun Settings(
     var checkingWolfi by remember { mutableStateOf(false) }
     var wolfiUpdateMsg by remember { mutableStateOf<String?>(null) }
     var selectedLoginShell by remember { mutableStateOf(Settings.login_shell) }
+
+    LaunchedEffect(Unit) {
+        SheveryManager.detectManager(context)
+        SheveryManager.refresh()
+    }
 
     fun selectWolfi() {
         defaultIsCustom = false
@@ -223,10 +229,65 @@ fun Settings(
                 selectedExecMode = it
                 Rootfs.setExecMode(it)
             }
+            ExecModeOption("Chroot (Shevery)", "Root via Shevery manager, real bind mounts", ExecMode.SHEVERY, selectedExecMode) {
+                selectedExecMode = it
+                Rootfs.setExecMode(it)
+            }
             ExecModeOption("Proot", "No root required, slightly slower", ExecMode.PROOT, selectedExecMode) {
                 selectedExecMode = it
                 Rootfs.setExecMode(it)
             }
+        }
+
+        PreferenceGroup(heading = "Root access (Shevery / Shizuku)") {
+            val mgrInstalled = SheveryManager.isManagerInstalled()
+            val granted = SheveryManager.permissionGranted.value
+            val fullRoot = SheveryManager.hasFullRootAccess
+            SettingsCard(
+                title = { Text(SheveryManager.statusLine()) },
+                description = {
+                    Text(
+                        when {
+                            fullRoot -> "Mounts, chroot and elevated shells allowed"
+                            granted -> "Granted, but daemon is not root — chroot unavailable"
+                            else -> "Tap to refresh status"
+                        }
+                    )
+                },
+                onClick = {
+                    SheveryManager.detectManager(context)
+                    SheveryManager.refresh()
+                }
+            )
+            if (!granted) {
+                SettingsCard(
+                    title = { Text("Grant manager permission") },
+                    description = { Text("Ask ${SheveryManager.managerLabel} for full access") },
+                    onClick = { SheveryManager.ensurePermission(context) }
+                )
+            }
+            SettingsCard(
+                title = {
+                    Text(
+                        if (mgrInstalled) "Open ${SheveryManager.managerLabel} manager"
+                        else "Get Shevery manager"
+                    )
+                },
+                description = {
+                    Text(
+                        if (mgrInstalled) "Start the server and allow this app"
+                        else "Required for root access and chroot"
+                    )
+                },
+                onClick = { SheveryManager.openManager(context) }
+            )
+            SettingsToggle(
+                label = stringResource(strings.use_shizuku),
+                description = stringResource(strings.use_shizuku_desc),
+                showSwitch = true,
+                default = Settings.auto_rish,
+                sideEffect = { Settings.auto_rish = it }
+            )
         }
 
         PreferenceGroup(heading = "Wolfi updates") {

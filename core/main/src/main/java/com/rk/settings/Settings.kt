@@ -103,6 +103,24 @@ object Settings {
         get() = Preference.getString(key = "login_shell", default = "/bin/bash")
         set(value) = Preference.setString(key = "login_shell", value)
 
+    /**
+     * Auto-login via rish (Shevery / Shizuku): Android-shell sessions and
+     * "Chroot (Shevery)" sessions start elevated when the manager granted
+     * access and rish is set up. Falls back silently when unavailable.
+     */
+    var auto_rish
+        get() = Preference.getBoolean(key = "auto_rish", default = false)
+        set(value) = Preference.setBoolean(key = "auto_rish", value)
+
+    /**
+     * rish executable location. Blank/"rish" = search PATH + app bin dir.
+     * Absolute path = use directly. Set up rish from the manager app first:
+     * Shevery/Shizuku -> "Use in terminal apps".
+     */
+    var rish_path
+        get() = Preference.getString(key = "rish_path", default = "rish")
+        set(value) = Preference.setString(key = "rish_path", value)
+
     var default_is_custom
         get() = Preference.getBoolean(key = "default_is_custom", default = false)
         set(value) = Preference.setBoolean(key = "default_is_custom", value)

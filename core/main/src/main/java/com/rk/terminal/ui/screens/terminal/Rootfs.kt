@@ -11,7 +11,14 @@ import java.io.File
 
 enum class ExecMode(val value: Int) {
     CHROOT(0),
-    PROOT(1);
+    PROOT(1),
+    /**
+     * chroot with root from the Shevery / Shizuku manager: the session boots
+     * through rish (elevated daemon) instead of local su. Requires the manager
+     * granted + running as root (uid 0). Falls back to plain chroot/proot
+     * behavior when unavailable — sessions never fail because of this.
+     */
+    SHEVERY(2);
 
     companion object {
         fun fromInt(v: Int): ExecMode? = entries.firstOrNull { it.value == v }

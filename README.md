@@ -31,6 +31,28 @@ Direct download: https://github.com/leloush-x/wolfi-terminal/releases/latest/dow
 - Direct script launch (open `.sh` files with the terminal)
 - Custom fonts, background images, themes, and dynamic Monet colors
 
+## Root access (Shevery / Shizuku)
+
+Wolfi Terminal speaks the Shizuku client API, so it works with both
+[Shevery](https://github.com/HmnDev-Tech/shevery) (`com.hamondev.shevery`,
+preferred) and [Shizuku](https://github.com/RikkaApps/Shizuku) managers —
+plus Sui, automatically.
+
+1. Install and start Shevery (root start, or wireless debugging / ADB).
+2. In Shevery: **"Use in terminal apps"** — set up `rish` for this app.
+3. In Wolfi Terminal: **Settings → Root access** — grant the manager
+   permission (status shows root `uid 0` vs ADB `uid 2000`).
+4. Pick **Execution Mode → Chroot (Shevery)** for bind mounts + chroot with
+   root from the manager, or enable **Auto Login** (`rish`) for an elevated
+   Android shell.
+
+Notes:
+- Chroot needs the manager daemon running as **root** (`uid 0`). ADB-mode
+  daemons (`uid 2000`) cannot mount/chroot — the app falls back to plain
+  chroot/proot and tells you why.
+- If `rish` or the grant is missing, sessions still start unelevated —
+  root access never breaks session creation.
+
 ## Screenshots
 
 <div>

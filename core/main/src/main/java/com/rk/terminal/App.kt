@@ -7,6 +7,7 @@ import android.os.StrictMode
 import com.github.anrwatchdog.ANRWatchDog
 import com.rk.libcommons.application
 import com.rk.resources.Res
+import com.rk.terminal.root.SheveryManager
 import com.rk.terminal.ui.screens.terminal.TerminalUtils
 import com.rk.update.UpdateManager
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -34,6 +35,7 @@ class App : Application() {
         application = this
         Res.application = this
         TerminalUtils.init(this)
+        SheveryManager.init(this)
 
         GlobalScope.launch(Dispatchers.IO) {
             getTempDir(this@App).apply {

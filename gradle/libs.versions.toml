@@ -68,6 +68,7 @@ gson = "2.13.2"
 semver = "3.1.0"
 leakcanary = "2.14"
 motionCompose = "2.0.1"
+shizuku = "13.1.5"
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -192,3 +193,7 @@ regex-re2j = { module = "io.github.dingyi222666.regex-lib:regex-lib-re2j", versi
 
 # Desugaring
 desugar = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar_jdk_libs" }
+
+# Shizuku / Shevery (Shevery manager speaks the same client API)
+shizuku-api = { module = "dev.rikka.shizuku:api", version.ref = "shizuku" }
+shizuku-provider = { module = "dev.rikka.shizuku:provider", version.ref = "shizuku" }

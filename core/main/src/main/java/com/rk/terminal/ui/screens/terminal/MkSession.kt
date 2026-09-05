@@ -11,8 +11,10 @@ import com.rk.libcommons.localLibDir
 import com.rk.libcommons.toast
 import com.rk.libcommons.wolfiDir
 import com.rk.libcommons.wolfiHomeDir
+import com.rk.settings.Settings
 import com.rk.terminal.App.Companion.getTempDir
 import com.rk.terminal.BuildConfig
+import com.rk.terminal.root.SheveryManager
 import com.rk.terminal.ui.screens.settings.WorkingMode
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
@@ -21,6 +23,34 @@ import java.io.File
 
 object MkSession {
     private var warnedMissingBash = false
+    private var warnedRishDenied = false
+
+    /**
+     * Locate the rish executable installed via the Shevery / Shizuku manager
+     * ("Use in terminal apps"). Honors [Settings.rish_path]: absolute path is
+     * used directly, a bare name is searched on PATH plus the app bin dir.
+     * Null when rish is not set up.
+     */
+    fun resolveRish(context: Context): File? {
+        val pref = Settings.rish_path.trim()
+        val names = buildList {
+            if (pref.isNotBlank()) add(pref)
+            if (pref != "rish") add("rish")
+        }
+        for (name in names) {
+            if (name.contains("/")) {
+                File(name).takeIf { it.canExecute() }?.let { return it }
+            } else {
+                val pathDirs =
+                    (System.getenv("PATH") ?: "/system/bin:/system/xbin").split(":")
+                for (dir in pathDirs) {
+                    File(dir, name).takeIf { it.canExecute() }?.let { return it }
+                }
+                context.localBinDir().child(name).takeIf { it.canExecute() }?.let { return it }
+            }
+        }
+        return null
+    }
 
     fun createSession(
         context: Context,
@@ -48,9 +78,40 @@ object MkSession {
                 alpineHomeDir().path
             }
 
-            val useChroot = Rootfs.execMode.value == ExecMode.CHROOT
+            val useChroot = Rootfs.execMode.value == ExecMode.CHROOT ||
+                Rootfs.execMode.value == ExecMode.SHEVERY
+            val wantShevery = Rootfs.execMode.value == ExecMode.SHEVERY
 
-            val loginShell = com.rk.settings.Settings.login_shell
+            // Elevated session via rish: the manager daemon (root) owns the
+            // privileged side while the app keeps the pty, so the shell stays
+            // fully interactive. Anything unavailable -> plain local shell.
+            // Cached manager state only (no binder IPC on session start).
+            val rishBin: File? = if (
+                wantShevery ||
+                (Settings.auto_rish && workingMode == WorkingMode.ANDROID)
+            ) {
+                resolveRish(this@with)
+            } else {
+                null
+            }
+            val sheveryChrootReady = wantShevery && rishBin != null &&
+                SheveryManager.permissionGranted.value &&
+                SheveryManager.serverUid.value == 0
+
+            if (wantShevery && !sheveryChrootReady && pendingCommand == null &&
+                (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI)
+            ) {
+                when {
+                    rishBin == null ->
+                        toast("rish not found — in Shevery: 'Use in terminal apps', then retry")
+                    !SheveryManager.permissionGranted.value ->
+                        toast("Grant access in Shevery first (Settings → Root access)")
+                    else ->
+                        toast("Shevery must run as root (uid 0) for chroot")
+                }
+            }
+
+            val loginShell = Settings.login_shell
             if (loginShell.isNotBlank() && loginShell.endsWith("bash") &&
                 (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI) &&
                 !warnedMissingBash
@@ -144,20 +205,55 @@ object MkSession {
             }
 
             val args: Array<String>
-            val shell = if (pendingCommand == null) {
-                args = if (workingMode == WorkingMode.ALPINE) {
+            val shell: String
+            var wrappingRish = false
+            if (pendingCommand == null) {
+                if (workingMode == WorkingMode.ALPINE) {
                     val targetInit = if (useChroot) initChrootFile else initFile
-                    arrayOf("-c",targetInit.absolutePath)
+                    if (sheveryChrootReady) {
+                        wrappingRish = true
+                        shell = rishBin!!.absolutePath
+                        args = arrayOf("-c", targetInit.absolutePath)
+                    } else {
+                        shell = "/system/bin/sh"
+                        args = arrayOf("-c", targetInit.absolutePath)
+                    }
                 } else if (workingMode == WorkingMode.WOLFI) {
                     val targetInit = if (useChroot) initWolfiChrootFile else initWolfiFile
-                    arrayOf("-c",targetInit.absolutePath)
+                    if (sheveryChrootReady) {
+                        wrappingRish = true
+                        shell = rishBin!!.absolutePath
+                        args = arrayOf("-c", targetInit.absolutePath)
+                    } else {
+                        shell = "/system/bin/sh"
+                        args = arrayOf("-c", targetInit.absolutePath)
+                    }
                 } else {
-                    arrayOf()
+                    // ANDROID host shell, optionally elevated via rish.
+                    if (rishBin != null && Settings.auto_rish &&
+                        SheveryManager.hasElevatedAccess
+                    ) {
+                        wrappingRish = true
+                        shell = rishBin.absolutePath
+                        args = arrayOf()
+                    } else {
+                        if (Settings.auto_rish && rishBin != null && !warnedRishDenied &&
+                            !SheveryManager.hasElevatedAccess
+                        ) {
+                            warnedRishDenied = true
+                            toast("Shevery access missing — Android shell started unelevated")
+                        }
+                        shell = "/system/bin/sh"
+                        args = arrayOf()
+                    }
                 }
-                "/system/bin/sh"
             } else {
                 args = pendingCommand.args
-                pendingCommand.shell
+                shell = pendingCommand.shell
+            }
+            if (wrappingRish) {
+                // Pass our env (PREFIX, BIN, ...) to the privileged shell.
+                env.add("RISH_PRESERVE_ENV=1")
             }
 
             return TerminalSession(
@@ -235,7 +331,8 @@ object MkSession {
                 )
             }
         } else if (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI) {
-            val useChroot = Rootfs.execMode.value == ExecMode.CHROOT
+            val execMode = Rootfs.execMode.value
+            val useChroot = execMode == ExecMode.CHROOT || execMode == ExecMode.SHEVERY
             val binName = when {
                 workingMode == WorkingMode.WOLFI && useChroot -> "init-wolfi-host-chroot"
                 workingMode == WorkingMode.WOLFI -> "init-wolfi-host"
@@ -243,12 +340,26 @@ object MkSession {
                 else -> "init-host"
             }
             val initFile = context.localBinDir().child(binName)
-            PendingCommand(
-                shell = "/system/bin/sh",
-                args = arrayOf("-c",initFile.absolutePath,"sh",script.absolutePath),
-                workingDir = workingDir,
-                env = null
-            )
+            // One-shot script in "Chroot (Shevery)" mode: run the same init
+            // through rish when the manager grants root; otherwise local su.
+            val rishBin = if (execMode == ExecMode.SHEVERY) resolveRish(context) else null
+            if (rishBin != null && SheveryManager.permissionGranted.value &&
+                SheveryManager.serverUid.value == 0
+            ) {
+                PendingCommand(
+                    shell = rishBin.absolutePath,
+                    args = arrayOf("-c", initFile.absolutePath, "sh", script.absolutePath),
+                    workingDir = workingDir,
+                    env = listOf("RISH_PRESERVE_ENV=1")
+                )
+            } else {
+                PendingCommand(
+                    shell = "/system/bin/sh",
+                    args = arrayOf("-c",initFile.absolutePath,"sh",script.absolutePath),
+                    workingDir = workingDir,
+                    env = null
+                )
+            }
         } else {
             PendingCommand(
                 shell = "/system/bin/sh",
