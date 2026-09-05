@@ -78,13 +78,12 @@ object MkSession {
                 alpineHomeDir().path
             }
 
-            val useChroot = Rootfs.execMode.value == ExecMode.CHROOT ||
-                Rootfs.execMode.value == ExecMode.SHEVERY
-            val wantShevery = Rootfs.execMode.value == ExecMode.SHEVERY
+            val execMode = Rootfs.execMode.value
+            val wantShevery = execMode == ExecMode.SHEVERY
 
             // Elevated session via rish: the manager daemon (root) owns the
             // privileged side while the app keeps the pty, so the shell stays
-            // fully interactive. Anything unavailable -> plain local shell.
+            // fully interactive. Anything unavailable -> fallbacks below.
             // Cached manager state only (no binder IPC on session start).
             val rishBin: File? = if (
                 wantShevery ||
@@ -98,17 +97,47 @@ object MkSession {
                 SheveryManager.permissionGranted.value &&
                 SheveryManager.serverUid.value == 0
 
+            // Best-effort su visibility check (SELinux can still block an
+            // otherwise visible binary; the init script re-checks for real).
+            val suVisible = listOf(
+                "/system/bin/su", "/sbin/su", "/system/xbin/su", "/su/bin/su"
+            ).any { File(it).canExecute() }
+
+            // NON-ROOT Shevery path: no root daemon and no local su, so a
+            // chroot here would die with 127. Run the distro via proot
+            // instead — the session works, only the mechanism changes.
+            // Plain CHROOT and local-su fallbacks are untouched.
+            val sheveryProotFallback = wantShevery && !sheveryChrootReady && !suVisible &&
+                pendingCommand == null &&
+                (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI)
+            val useChroot = execMode == ExecMode.CHROOT ||
+                (wantShevery && !sheveryProotFallback)
+
             if (wantShevery && !sheveryChrootReady && pendingCommand == null &&
                 (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI)
             ) {
                 when {
+                    sheveryProotFallback && rishBin == null ->
+                        toast("rish not found — Shevery setup missing: distro runs via Proot")
+                    sheveryProotFallback && !SheveryManager.permissionGranted.value ->
+                        toast("Shevery access not granted — distro runs via Proot (Settings → Root access)")
+                    sheveryProotFallback ->
+                        toast("Shevery is ADB-mode (no root) — distro runs via Proot")
                     rishBin == null ->
-                        toast("rish not found — in Shevery: 'Use in terminal apps', then retry")
+                        toast("rish not found — falling back to local su chroot")
                     !SheveryManager.permissionGranted.value ->
-                        toast("Grant access in Shevery first (Settings → Root access)")
+                        toast("Shevery access missing — falling back to local su chroot")
                     else ->
-                        toast("Shevery must run as root (uid 0) for chroot")
+                        toast("Shevery daemon is not root — falling back to local su chroot")
                 }
+            }
+
+            // Early hint for plain chroot without any visible su: the init
+            // script will fail at the first mount otherwise.
+            if (!wantShevery && useChroot && !suVisible && pendingCommand == null &&
+                (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI)
+            ) {
+                toast("No su visible to the app — chroot will fail; use Proot or Chroot (Shevery)")
             }
 
             val loginShell = Settings.login_shell
@@ -332,7 +361,21 @@ object MkSession {
             }
         } else if (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI) {
             val execMode = Rootfs.execMode.value
-            val useChroot = execMode == ExecMode.CHROOT || execMode == ExecMode.SHEVERY
+            val wantSheveryScript = execMode == ExecMode.SHEVERY
+            // One-shot script in "Chroot (Shevery)" mode: rish when the
+            // manager grants root, local su when visible, proot otherwise
+            // (non-root: a chroot here would die with 127).
+            val rishBin = if (wantSheveryScript) resolveRish(context) else null
+            val rishReady = rishBin != null && SheveryManager.permissionGranted.value &&
+                SheveryManager.serverUid.value == 0
+            val suVisible = listOf(
+                "/system/bin/su", "/sbin/su", "/system/xbin/su", "/su/bin/su"
+            ).any { File(it).canExecute() }
+            val useChroot = execMode == ExecMode.CHROOT ||
+                (wantSheveryScript && (rishReady || suVisible))
+            if (wantSheveryScript && !rishReady && !suVisible) {
+                toast("Shevery is ADB-mode (no root) — script runs via Proot")
+            }
             val binName = when {
                 workingMode == WorkingMode.WOLFI && useChroot -> "init-wolfi-host-chroot"
                 workingMode == WorkingMode.WOLFI -> "init-wolfi-host"
@@ -340,14 +383,9 @@ object MkSession {
                 else -> "init-host"
             }
             val initFile = context.localBinDir().child(binName)
-            // One-shot script in "Chroot (Shevery)" mode: run the same init
-            // through rish when the manager grants root; otherwise local su.
-            val rishBin = if (execMode == ExecMode.SHEVERY) resolveRish(context) else null
-            if (rishBin != null && SheveryManager.permissionGranted.value &&
-                SheveryManager.serverUid.value == 0
-            ) {
+            if (rishReady) {
                 PendingCommand(
-                    shell = rishBin.absolutePath,
+                    shell = rishBin!!.absolutePath,
                     args = arrayOf("-c", initFile.absolutePath, "sh", script.absolutePath),
                     workingDir = workingDir,
                     env = listOf("RISH_PRESERVE_ENV=1")

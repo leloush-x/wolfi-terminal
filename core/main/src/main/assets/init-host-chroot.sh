@@ -1,5 +1,27 @@
 #!/bin/sh
-SU="/system/bin/su"
+# Resolve a usable su. Plain CHROOT sessions run unprivileged, so su must be
+# visible *and* executable from this app (root managers can hide it via
+# DenyList / mount namespace — allow the app there if `su` works in ADB shell
+# but not here). Shevery-root sessions run this whole script elevated via
+# rish instead and never reach the error below without privilege.
+resolve_su() {
+    for c in /system/bin/su /sbin/su /system/xbin/su /su/bin/su su; do
+        if [ -x "$c" ] && "$c" -c true 2>/dev/null; then
+            echo "$c"
+            return 0
+        fi
+    done
+    return 1
+}
+SU="$(resolve_su)" || {
+    echo "No working su found for this app. Options:"
+    echo "  1) Settings -> Execution Mode -> Proot (no root needed), or"
+    echo "  2) Root the device and allow Wolfi Terminal in the root manager"
+    echo "     (remove it from DenyList), or"
+    echo "  3) Settings -> Execution Mode -> Chroot (Shevery) with Shevery"
+    echo "     running as root and rish set up ('Use in terminal apps')."
+    exit 127
+}
 ALPINE_DIR=$PREFIX/local/alpine
 
 mkdir -p $ALPINE_DIR

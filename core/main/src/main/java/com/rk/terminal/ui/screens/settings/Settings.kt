@@ -229,7 +229,19 @@ fun Settings(
                 selectedExecMode = it
                 Rootfs.setExecMode(it)
             }
-            ExecModeOption("Chroot (Shevery)", "Root via Shevery manager, real bind mounts", ExecMode.SHEVERY, selectedExecMode) {
+            ExecModeOption(
+                "Chroot (Shevery)",
+                when {
+                    SheveryManager.hasFullRootAccess ->
+                        "Root via Shevery manager, real bind mounts"
+                    SheveryManager.permissionGranted.value ->
+                        "Shevery is ADB-mode here — distros run via Proot"
+                    else ->
+                        "Root via Shevery manager — needs grant + root daemon"
+                },
+                ExecMode.SHEVERY,
+                selectedExecMode
+            ) {
                 selectedExecMode = it
                 Rootfs.setExecMode(it)
             }
