@@ -1,40 +1,49 @@
 # Wolfi Terminal
 
-**Wolfi Terminal** is a sleek, Material 3-inspired Android terminal emulator with **Wolfi Linux** and **Alpine Linux** built in — proot or chroot, multiple sessions, virtual keys. Built on [Termux's](https://github.com/termux/termux-app) robust TerminalView. Forked from [ReTerminal](https://github.com/RohitKushvaha01/ReTerminal).
+**Wolfi Terminal** is a sleek, Material 3 Android terminal emulator with **Wolfi Linux** and **Alpine Linux** built in — no root required. Multiple sessions, virtual keys, proot or chroot execution, and a configurable login shell. Built on [Termux's](https://github.com/termux/termux-app) TerminalView. Forked from [ReTerminal](https://github.com/RohitKushvaha01/ReTerminal).
 
-Download the latest APK from the [Releases Section](https://github.com/leloush-x/wolfi-terminal/releases/latest) — one rolling release page, always the newest build (`wolfi-terminal-latest.apk`).
+## Download
+
+Get the latest APK from the [Releases page](https://github.com/leloush-x/wolfi-terminal/releases/latest) — a single rolling release, always the newest build (`wolfi-terminal-latest.apk`).
 
 Direct download: https://github.com/leloush-x/wolfi-terminal/releases/latest/download/wolfi-terminal-latest.apk
 
-# Distros
+## Distros
 
 | Distro | Base | Install |
 |--------|------|---------|
-| 🐺 Wolfi | glibc, `apk`, preinstalled `fastfetch` `curl` `git` | On-demand download from [wolfi-os-rootfs](https://github.com/leloush-x/wolfi-os-rootfs) latest release (Settings → Default Working mode → Wolfi) |
+| 🐺 Wolfi | glibc, `apk`, with `fastfetch`, `curl`, and `git` preinstalled | On-demand download from [wolfi-os-rootfs](https://github.com/leloush-x/wolfi-os-rootfs) (Settings → Default Working mode → Wolfi) |
 | 🏔️ Alpine | musl, bundled in the APK | Automatic on first launch |
 | 🤖 Android | Host shell | Built in |
 
-Wolfi needs arm64 or x86_64 (no ARM32 — use Alpine on older devices).
+> **Note:** Wolfi requires arm64 or x86_64. On 32-bit ARM devices, use Alpine.
 
-# Features
-- [x] Basic Terminal
-- [x] Virtual Keys
-- [x] Multiple Sessions (Alpine / Wolfi / Android / custom)
-- [x] Wolfi Linux support (glibc, on-demand latest rootfs)
-- [x] Alpine Linux support (bundled)
-- [x] proot (no root) or chroot (rooted, faster) execution modes
-- [x] bash default login shell (configurable: sh / ash, per-distro fallback)
-- [x] Configurable Keyboard Shortcuts (Paste, Session Management)
-- [x] Direct script launch (open `.sh` files with the terminal)
+## Features
 
-# Screenshots
+- Terminal with Material 3 UI
+- Virtual keys bar (customizable via JSON)
+- Multiple sessions (Alpine / Wolfi / Android / custom)
+- Wolfi Linux support (glibc, on-demand latest rootfs)
+- Alpine Linux support (bundled)
+- proot (no root needed) or chroot (rooted, faster) modes
+- bash default login shell (configurable: sh / ash, with per-distro fallback)
+- Configurable keyboard shortcuts (paste, session management)
+- Direct script launch (open `.sh` files with the terminal)
+- Custom fonts, background images, themes, and dynamic Monet colors
+
+## Screenshots
+
 <div>
-  <img src="/fastlane/metadata/android/en-US/images/phoneScreenshots/01.png" width="32%" />
-  <img src="/fastlane/metadata/android/en-US/images/phoneScreenshots/02.jpg" width="32%" />
-  <img src="/fastlane/metadata/android/en-US/images/phoneScreenshots/03.jpg" width="32%" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/01.png" width="32%" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/02.jpg" width="32%" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/03.jpg" width="32%" />
+</div>
+<div>
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/04.jpg" width="32%" />
+  <img src="fastlane/metadata/android/en-US/images/phoneScreenshots/05.png" width="32%" />
 </div>
 
-# Build
+## Build
 
 ```sh
 ./gradlew assembleRelease
@@ -43,7 +52,12 @@ Wolfi needs arm64 or x86_64 (no ARM32 — use Alpine on older devices).
 
 CI builds and publishes to the rolling `latest` release on every push to `main` (or manual trigger).
 
-# Credits
+## Credits
+
 - [ReTerminal](https://github.com/RohitKushvaha01/ReTerminal) — base app
 - [Wolfi](https://github.com/wolfi-dev/os) via [wolfi-os-rootfs](https://github.com/leloush-x/wolfi-os-rootfs) — Wolfi rootfs builds
-- [Termux](https://github.com/termux/termux-app) — TerminalView/Emulator
+- [Termux](https://github.com/termux/termux-app) — TerminalView / Terminal Emulator
+
+## License
+
+MIT — see [LICENSE](LICENSE).
