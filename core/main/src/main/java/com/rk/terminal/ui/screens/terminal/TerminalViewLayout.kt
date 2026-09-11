@@ -20,6 +20,7 @@ import com.rk.libcommons.localDir
 import com.rk.settings.Settings
 import com.rk.terminal.service.SessionService
 import com.rk.terminal.ui.activities.terminal.MainActivity
+import com.rk.terminal.ui.screens.settings.SftpManager
 import com.rk.terminal.ui.screens.terminal.virtualkeys.*
 import com.termux.terminal.TerminalColors
 import com.termux.view.TerminalView
@@ -70,9 +71,16 @@ fun TerminalViewLayout(
                     setTypeface(TerminalUtils.typeface)
 
                     if (Settings.sftp_enabled) {
-                        post {
-                            val port = Settings.sftp_port
-                            session.write("nohup sftp-server -p $port &\n")
+                        // Delayed + single-flight: the shell needs a moment to boot,
+                        // and each new TerminalView must not spawn another daemon.
+                        val port = Settings.sftp_port
+                        val key = "${service.currentSession.value.first}:$port"
+                        if (SftpManager.markAutoStarted(key)) {
+                            postDelayed({
+                                if (session.isRunning) {
+                                    session.write(SftpManager.startCommand(port) + "\n")
+                                }
+                            }, 2500)
                         }
                     }
 
