@@ -69,14 +69,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-const val BUN_EXAMPLE = """curl -fsSL https://bun.sh/install | bash
+val BUN_EXAMPLE = """curl -fsSL https://bun.sh/install | bash
 cat << 'EOF' >> ~/.bashrc
-export BUN_INSTALL="$HOME/.bun"
-export PATH="$BUN_INSTALL/bin:$PATH"
+export BUN_INSTALL="${'$'}HOME/.bun"
+export PATH="${'$'}BUN_INSTALL/bin:${'$'}PATH"
 EOF
 cat << 'EOF' >> ~/.profile
-export BUN_INSTALL="$HOME/.bun"
-export PATH="$BUN_INSTALL/bin:$PATH"
+export BUN_INSTALL="${'$'}HOME/.bun"
+export PATH="${'$'}BUN_INSTALL/bin:${'$'}PATH"
 EOF
 source ~/.bashrc 2>/dev/null || . ~/.profile
 bun install -g opencode-ai"""
