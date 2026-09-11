@@ -118,21 +118,11 @@ fun TerminalDrawer(
                 service?.sessionList?.keys?.toList() ?: emptyList()
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                AssistChip(
-                    onClick = { navController.navigate(MainActivityRoutes.GitHubRepos.route) },
-                    label = { Text("GitHub") },
-                    modifier = Modifier.weight(1f)
-                )
-                AssistChip(
-                    onClick = { navController.navigate(MainActivityRoutes.SetupRunner.route) },
-                    label = { Text("Setup") },
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            AssistChip(
+                onClick = { navController.navigate(MainActivityRoutes.GitHubRepos.route) },
+                label = { Text("GitHub") },
+                modifier = Modifier.fillMaxWidth()
+            )
 
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
