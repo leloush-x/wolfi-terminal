@@ -23,7 +23,7 @@ object SftpManager {
     fun effectivePort(raw: String): Int =
         raw.toIntOrNull()?.takeIf { it in MIN_PORT..MAX_PORT } ?: DEFAULT_PORT
 
-    /** Single-flight guard so auto-start fires once per session+port. */
+    /** Single-flight guard so auto-start fires once per key (callers pass the port). */
     private val autoStarted = mutableSetOf<String>()
 
     @Synchronized

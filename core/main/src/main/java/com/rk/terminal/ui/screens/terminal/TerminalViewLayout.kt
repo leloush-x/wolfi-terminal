@@ -71,14 +71,14 @@ fun TerminalViewLayout(
                     setTypeface(TerminalUtils.typeface)
 
                     if (Settings.sftp_enabled) {
-                        // Delayed + single-flight: the shell needs a moment to boot,
-                        // and each new TerminalView must not spawn another daemon.
+                        // Fire once per port per app process, detached: the shell gets
+                        // its prompt immediately and the daemon stays up until the
+                        // toggle is switched off or the app is killed.
                         val port = Settings.sftp_port
-                        val key = "${service.currentSession.value.first}:$port"
-                        if (SftpManager.markAutoStarted(key)) {
+                        if (SftpManager.markAutoStarted(port.toString())) {
                             postDelayed({
                                 if (session.isRunning) {
-                                    session.write(SftpManager.startCommand(port) + "\n")
+                                    session.write("(${SftpManager.startCommand(port)}) &\n")
                                 }
                             }, 2500)
                         }
