@@ -17,6 +17,8 @@ import com.rk.terminal.ui.animations.NavigationAnimationTransitions
 import com.rk.terminal.ui.routes.MainActivityRoutes
 import com.rk.terminal.ui.screens.customization.Customization
 import com.rk.terminal.ui.screens.downloader.SetupScreen
+import com.rk.terminal.github.GitHubReposScreen
+import com.rk.terminal.github.SetupRunnerScreen
 import com.rk.terminal.ui.screens.settings.Settings
 import com.rk.terminal.ui.screens.terminal.Rootfs
 import com.rk.terminal.ui.screens.terminal.TerminalScreen
@@ -62,6 +64,16 @@ fun MainActivityNavHost(
         composable(MainActivityRoutes.Customization.route) {
             UpdateStatusBar(mainActivity.window, true)
             Customization(mainActivity = mainActivity, navController = navController)
+        }
+
+        composable(MainActivityRoutes.GitHubRepos.route) {
+            UpdateStatusBar(mainActivity.window, true)
+            GitHubReposScreen(navController = navController, mainActivity = mainActivity)
+        }
+
+        composable(MainActivityRoutes.SetupRunner.route) {
+            UpdateStatusBar(mainActivity.window, true)
+            SetupRunnerScreen(navController = navController, mainActivity = mainActivity)
         }
     }
 }

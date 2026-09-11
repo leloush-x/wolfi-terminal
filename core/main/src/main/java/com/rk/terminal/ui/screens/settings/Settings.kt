@@ -36,6 +36,7 @@ import com.rk.terminal.ui.screens.downloader.AlpineSetupScreen
 import com.rk.terminal.ui.screens.downloader.WolfiDownloadScreen
 import com.rk.terminal.ui.screens.downloader.WolfiRepo
 import com.rk.terminal.ui.screens.terminal.CustomSessions
+import com.rk.terminal.github.GitHubSettingsSection
 import com.rk.terminal.ui.screens.terminal.ExecMode
 import com.rk.terminal.ui.screens.terminal.Rootfs
 
@@ -360,6 +361,23 @@ fun Settings(
                     )
                 }
             }
+        }
+
+        GitHubSettingsSection(navController = navController, mainActivity = mainActivity)
+
+        PreferenceGroup(heading = "Quick setup") {
+            SettingsCard(
+                title = { Text("Paste & run setup command") },
+                description = { Text("curl … | bash, bun install, dotfiles — runs in a new session with live output") },
+                onClick = { navController.navigate(MainActivityRoutes.SetupRunner.route) },
+                endWidget = {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                        contentDescription = null,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            )
         }
 
         PreferenceGroup(heading = "Login shell") {

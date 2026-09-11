@@ -38,6 +38,14 @@ object Settings {
         get() = Preference.getBoolean(key = "github", default = true)
         set(value) = Preference.setBoolean(key = "github",value)
 
+    var github_username
+        get() = Preference.getString(key = "github_username", default = "")
+        set(value) = Preference.setString(key = "github_username", value)
+
+    var github_token
+        get() = Preference.getString(key = "github_token", default = "")
+        set(value) = Preference.setString(key = "github_token", value)
+
 
     var follow_system_theme
         get() = Preference.getBoolean(key = "follow_system_theme", default = true)
