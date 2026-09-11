@@ -184,6 +184,14 @@ object Settings {
         get() = Preference.getBoolean(key = "shortcuts_enabled", default = true)
         set(value) = Preference.setBoolean(key = "shortcuts_enabled", value)
 
+    var sftp_enabled
+        get() = Preference.getBoolean(key = "sftp_enabled", default = false)
+        set(value) = Preference.setBoolean(key = "sftp_enabled", value)
+
+    var sftp_port
+        get() = Preference.getInt(key = "sftp_port", default = 8022)
+        set(value) = Preference.setInt(key = "sftp_port", value)
+
     const val default_virtual_keys = "[" +
         "\n  [\"ESC\", {\"key\": \"/\", \"popup\": \"\\\\\"}, {\"key\": \"-\", \"popup\": \"|\"}, \"HOME\", \"UP\", \"END\", \"PGUP\"]," +
         "\n  [\"TAB\", \"CTRL\", \"ALT\", \"LEFT\", \"DOWN\", \"RIGHT\", \"PGDN\"]" +

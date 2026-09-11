@@ -69,6 +69,13 @@ fun TerminalViewLayout(
                     setTerminalViewClient(client)
                     setTypeface(TerminalUtils.typeface)
 
+                    if (Settings.sftp_enabled) {
+                        post {
+                            val port = Settings.sftp_port
+                            session.write("nohup sftp-server -p $port &\n")
+                        }
+                    }
+
                     post {
                         val color = TerminalUtils.getViewColor()
                         val bgColor = TerminalUtils.getBackgroundColor()

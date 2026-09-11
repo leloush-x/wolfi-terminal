@@ -365,6 +365,8 @@ fun Settings(
 
         GitHubSettingsSection(navController = navController, mainActivity = mainActivity)
 
+        SftpSettingsSection(navController = navController, mainActivity = mainActivity)
+
         PreferenceGroup(heading = "Login shell") {
             fun selectShell(value: String) {
                 selectedLoginShell = value
