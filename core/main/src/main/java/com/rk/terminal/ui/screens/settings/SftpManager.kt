@@ -45,9 +45,12 @@ object SftpManager {
             "if [ -f \"${d}PIDF\" ] && kill -0 \"$d(cat \"${d}PIDF\" 2>/dev/null)\" 2>/dev/null; then echo \"sshd already running on ${d}PORT\"; exit 0; fi\n" +
             "mkdir -p /run/sshd\n" +
             "ssh-keygen -A >/dev/null 2>&1\n" +
-            "sshd -p \"${d}PORT\" -o \"PidFile=${d}PIDF\" -o PermitRootLogin=yes -o PasswordAuthentication=yes\n" +
+            // OpenSSH re-execs itself and requires an absolute path: /usr/bin/sshd
+            // on Wolfi (merged-usr) vs /usr/sbin/sshd on Alpine. Resolve it.
+            "SSHD=$d(command -v sshd)\n" +
+            "\"${d}SSHD\" -p \"${d}PORT\" -o \"PidFile=${d}PIDF\" -o PermitRootLogin=yes -o PasswordAuthentication=yes\n" +
             "sleep 1\n" +
-            "if [ -f \"${d}PIDF\" ] && kill -0 \"$d(cat \"${d}PIDF\" 2>/dev/null)\" 2>/dev/null; then echo \"sshd listening on ${d}PORT — login as root (set a password with passwd)\"; else echo 'sshd failed to start — run sshd -T to diagnose'; fi"
+            "if [ -f \"${d}PIDF\" ] && kill -0 \"$d(cat \"${d}PIDF\" 2>/dev/null)\" 2>/dev/null; then echo \"sshd listening on ${d}PORT — login as root (set a password with passwd)\"; else echo \"sshd failed to start — run ${d}SSHD -T to diagnose\"; fi"
     }
 
     fun stopCommand(port: Int): String {
