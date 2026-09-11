@@ -112,12 +112,13 @@ object Settings {
         set(value) = Preference.setString(key = "login_shell", value)
 
     /**
-     * Auto-login via rish (Shevery / Shizuku): Android-shell sessions and
-     * "Chroot (Shevery)" sessions start elevated when the manager granted
-     * access and rish is set up. Falls back silently when unavailable.
+     * Auto-elevate via rish (Shevery / Shizuku): Android-shell sessions and
+     * distro sessions start with manager privileges when the manager granted
+     * access. Works with ADB (uid 2000) as well as root — only chroot itself
+     * still needs uid 0. Falls back silently when unavailable.
      */
     var auto_rish
-        get() = Preference.getBoolean(key = "auto_rish", default = false)
+        get() = Preference.getBoolean(key = "auto_rish", default = true)
         set(value) = Preference.setBoolean(key = "auto_rish", value)
 
     /**

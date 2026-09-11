@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.rk.resources.strings
+import com.rk.terminal.root.SheveryManager
 import com.rk.terminal.service.SessionService
 import com.rk.terminal.ui.routes.MainActivityRoutes
 
@@ -40,6 +41,14 @@ fun TerminalDrawer(
 ) {
     var sessionToRename by remember { mutableStateOf<String?>(null) }
     var showSortMenu by remember { mutableStateOf(false) }
+
+    // Keep manager state fresh so the ADB-mode banner below reflects reality.
+    LaunchedEffect(Unit) {
+        SheveryManager.refresh()
+    }
+    val adbMode = SheveryManager.permissionGranted.value &&
+        SheveryManager.serverUid.value != null &&
+        SheveryManager.serverUid.value != 0
 
     ModalDrawerSheet(
         modifier = Modifier.width(drawerWidth),
@@ -123,6 +132,23 @@ fun TerminalDrawer(
                 label = { Text("GitHub") },
                 modifier = Modifier.fillMaxWidth()
             )
+
+            if (adbMode) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                    )
+                ) {
+                    Text(
+                        text = "Shevery ADB mode (uid ${SheveryManager.serverUid.value}): sessions run " +
+                            "with shell privileges — chroot unavailable, distros use Proot. " +
+                            "For adb commands, enable auto-elevate in Settings → Root access.",
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
 
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(8.dp),

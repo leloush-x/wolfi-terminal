@@ -24,6 +24,7 @@ import java.io.File
 object MkSession {
     private var warnedMissingBash = false
     private var warnedRishDenied = false
+    private var warnedRishUnavailable = false
 
     /**
      * Locate the rish executable installed via the Shevery / Shizuku manager
@@ -81,14 +82,11 @@ object MkSession {
             val execMode = Rootfs.execMode.value
             val wantShevery = execMode == ExecMode.SHEVERY
 
-            // Elevated session via rish: the manager daemon (root) owns the
-            // privileged side while the app keeps the pty, so the shell stays
-            // fully interactive. Anything unavailable -> fallbacks below.
+            // Elevated session via rish: the manager daemon (root OR adb/shell)
+            // owns the privileged side while the app keeps the pty, so the shell
+            // stays fully interactive. Anything unavailable -> fallbacks below.
             // Cached manager state only (no binder IPC on session start).
-            val rishBin: File? = if (
-                wantShevery ||
-                (Settings.auto_rish && workingMode == WorkingMode.ANDROID)
-            ) {
+            val rishBin: File? = if (wantShevery || Settings.auto_rish) {
                 resolveRish(this@with)
             } else {
                 null
@@ -96,6 +94,12 @@ object MkSession {
             val sheveryChrootReady = wantShevery && rishBin != null &&
                 SheveryManager.permissionGranted.value &&
                 SheveryManager.serverUid.value == 0
+            // ADB-mode elevation (uid 2000): run the session through rish so the
+            // host-side process carries shell permissions. Distros boot via proot
+            // (chroot still needs uid 0); the plain Android shell is rish itself.
+            val hasRishElevation = rishBin != null && SheveryManager.hasElevatedAccess
+            val rishAdbReady = !sheveryChrootReady && hasRishElevation &&
+                (wantShevery || Settings.auto_rish)
 
             // Best-effort su visibility check (SELinux can still block an
             // otherwise visible binary; the init script re-checks for real).
@@ -117,6 +121,9 @@ object MkSession {
                 (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI)
             ) {
                 when {
+                    rishAdbReady -> {
+                        // Elevated via rish (ADB mode, proot under shell uid) — no warning.
+                    }
                     sheveryProotFallback && rishBin == null ->
                         toast("rish not found — Shevery setup missing: distro runs via Proot")
                     sheveryProotFallback && !SheveryManager.permissionGranted.value ->
@@ -130,6 +137,17 @@ object MkSession {
                     else ->
                         toast("Shevery daemon is not root — falling back to local su chroot")
                 }
+            }
+
+            // Auto-elevate requested but the manager can't deliver (not installed
+            // excluded: only nag when rish/a manager exists but access is missing).
+            // One-shot per process; the drawer banner explains the steady state.
+            if (Settings.auto_rish && !hasRishElevation && !warnedRishUnavailable &&
+                pendingCommand == null &&
+                (rishBin != null || SheveryManager.isManagerInstalled())
+            ) {
+                warnedRishUnavailable = true
+                toast("Shevery elevation unavailable — session started unelevated (grant access in the manager)")
             }
 
             // Early hint for plain chroot without any visible su: the init
@@ -243,6 +261,12 @@ object MkSession {
                         wrappingRish = true
                         shell = rishBin!!.absolutePath
                         args = arrayOf("-c", targetInit.absolutePath)
+                    } else if (rishAdbReady && !useChroot) {
+                        // ADB-mode: proot under the shell uid — adb/host commands
+                        // work with shell permissions inside and outside the distro.
+                        wrappingRish = true
+                        shell = rishBin!!.absolutePath
+                        args = arrayOf("-c", targetInit.absolutePath)
                     } else {
                         shell = "/system/bin/sh"
                         args = arrayOf("-c", targetInit.absolutePath)
@@ -250,6 +274,12 @@ object MkSession {
                 } else if (workingMode == WorkingMode.WOLFI) {
                     val targetInit = if (useChroot) initWolfiChrootFile else initWolfiFile
                     if (sheveryChrootReady) {
+                        wrappingRish = true
+                        shell = rishBin!!.absolutePath
+                        args = arrayOf("-c", targetInit.absolutePath)
+                    } else if (rishAdbReady && !useChroot) {
+                        // ADB-mode: proot under the shell uid — adb/host commands
+                        // work with shell permissions inside and outside the distro.
                         wrappingRish = true
                         shell = rishBin!!.absolutePath
                         args = arrayOf("-c", targetInit.absolutePath)
@@ -298,6 +328,21 @@ object MkSession {
 
     fun buildCustomPendingCommand(context: Context, custom: CustomSession): PendingCommand {
         val scriptFile = File(custom.shellPath)
+        val workingDir = scriptFile.parentFile?.absolutePath ?: "/sdcard/WolfiTerminal"
+
+        // Same elevation rule as interactive sessions: run through rish when
+        // the manager grants it (root or ADB), so adb/host commands work.
+        if (Settings.auto_rish) {
+            resolveRish(context)?.takeIf { SheveryManager.hasElevatedAccess }?.let { rish ->
+                return PendingCommand(
+                    shell = rish.absolutePath,
+                    args = arrayOf("-c", scriptFile.absolutePath),
+                    workingDir = workingDir,
+                    env = listOf("RISH_PRESERVE_ENV=1")
+                )
+            }
+        }
+
         val sysSh = File("/system/bin/sh")
 
         val shell: String
@@ -322,7 +367,7 @@ object MkSession {
         return PendingCommand(
             shell = shell,
             args = args,
-            workingDir = scriptFile.parentFile?.absolutePath ?: "/sdcard/WolfiTerminal",
+            workingDir = workingDir,
             env = null
         )
     }
@@ -362,18 +407,20 @@ object MkSession {
         } else if (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI) {
             val execMode = Rootfs.execMode.value
             val wantSheveryScript = execMode == ExecMode.SHEVERY
-            // One-shot script in "Chroot (Shevery)" mode: rish when the
-            // manager grants root, local su when visible, proot otherwise
-            // (non-root: a chroot here would die with 127).
-            val rishBin = if (wantSheveryScript) resolveRish(context) else null
-            val rishReady = rishBin != null && SheveryManager.permissionGranted.value &&
+            // One-shot script: rish when the manager grants root (chroot) or
+            // ADB (proot under the shell uid), local su when visible, proot
+            // otherwise (non-root: a chroot here would die with 127).
+            val rishBin = if (wantSheveryScript || Settings.auto_rish) resolveRish(context) else null
+            val rishRoot = rishBin != null && SheveryManager.permissionGranted.value &&
                 SheveryManager.serverUid.value == 0
+            val rishAdb = rishBin != null && SheveryManager.hasElevatedAccess && !rishRoot &&
+                (wantSheveryScript || Settings.auto_rish)
             val suVisible = listOf(
                 "/system/bin/su", "/sbin/su", "/system/xbin/su", "/su/bin/su"
             ).any { File(it).canExecute() }
             val useChroot = execMode == ExecMode.CHROOT ||
-                (wantSheveryScript && (rishReady || suVisible))
-            if (wantSheveryScript && !rishReady && !suVisible) {
+                (wantSheveryScript && (rishRoot || suVisible))
+            if (wantSheveryScript && !rishRoot && !suVisible && !rishAdb) {
                 toast("Shevery is ADB-mode (no root) — script runs via Proot")
             }
             val binName = when {
@@ -383,7 +430,14 @@ object MkSession {
                 else -> "init-host"
             }
             val initFile = context.localBinDir().child(binName)
-            if (rishReady) {
+            if (rishRoot) {
+                PendingCommand(
+                    shell = rishBin!!.absolutePath,
+                    args = arrayOf("-c", initFile.absolutePath, "sh", script.absolutePath),
+                    workingDir = workingDir,
+                    env = listOf("RISH_PRESERVE_ENV=1")
+                )
+            } else if (rishAdb && !useChroot) {
                 PendingCommand(
                     shell = rishBin!!.absolutePath,
                     args = arrayOf("-c", initFile.absolutePath, "sh", script.absolutePath),
@@ -399,12 +453,22 @@ object MkSession {
                 )
             }
         } else {
-            PendingCommand(
-                shell = "/system/bin/sh",
-                args = arrayOf("-c", script.absolutePath),
-                workingDir = workingDir,
-                env = null
-            )
+            val rishBin = if (Settings.auto_rish) resolveRish(context) else null
+            if (rishBin != null && SheveryManager.hasElevatedAccess) {
+                PendingCommand(
+                    shell = rishBin.absolutePath,
+                    args = arrayOf("-c", script.absolutePath),
+                    workingDir = workingDir,
+                    env = listOf("RISH_PRESERVE_ENV=1")
+                )
+            } else {
+                PendingCommand(
+                    shell = "/system/bin/sh",
+                    args = arrayOf("-c", script.absolutePath),
+                    workingDir = workingDir,
+                    env = null
+                )
+            }
         }
     }
 }
