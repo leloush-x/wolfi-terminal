@@ -248,13 +248,15 @@ private fun RepoCard(
     onCopy: () -> Unit,
     onOpen: () -> Unit
 ) {
+    var showSsh by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
         border = null
     ) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     repo.fullName,
@@ -293,6 +295,46 @@ private fun RepoCard(
                     Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                val cloneUrl = if (showSsh) repo.sshUrl else repo.cloneUrl
+                Text(
+                    text = cloneUrl,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(
+                    onClick = {
+                        ClipboardUtils.copyText("git-clone-url", cloneUrl)
+                        toast("URL copied")
+                    },
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Default.ContentCopy,
+                        contentDescription = "Copy URL",
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                AssistChip(
+                    onClick = { showSsh = false },
+                    label = { Text("HTTPS", style = MaterialTheme.typography.labelSmall) }
+                )
+                AssistChip(
+                    onClick = { showSsh = true },
+                    label = { Text("SSH", style = MaterialTheme.typography.labelSmall) }
+                )
+            }
+
             if (isCloning) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 Text("Sending to terminal…", style = MaterialTheme.typography.labelMedium)

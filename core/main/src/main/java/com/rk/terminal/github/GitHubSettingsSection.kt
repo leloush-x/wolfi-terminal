@@ -141,7 +141,11 @@ fun GitHubSettingsSection(
             onClick = {}
         )
 
-        Column(Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+        ) {
             OutlinedTextField(
                 value = username,
                 onValueChange = { username = it },
@@ -150,7 +154,7 @@ fun GitHubSettingsSection(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = token,
                 onValueChange = { token = it; verifiedUser = null },
@@ -169,7 +173,7 @@ fun GitHubSettingsSection(
                     }
                 }
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(12.dp))
             if (verifying) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
@@ -184,30 +188,46 @@ fun GitHubSettingsSection(
                     Spacer(Modifier.width(6.dp))
                     Text("Token valid — $it", style = MaterialTheme.typography.labelLarge)
                 }
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(onClick = { save() }, modifier = Modifier.weight(1f)) { Text("Save") }
-                OutlinedButton(onClick = { verify() }, enabled = !verifying) {
-                    if (verifying) CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
-                    else Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Button(
+                    onClick = { save() },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Save")
+                }
+                OutlinedButton(
+                    onClick = { verify() },
+                    enabled = !verifying,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    if (verifying) {
+                        CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
+                    } else {
+                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                    }
                     Spacer(Modifier.width(6.dp))
                     Text("Verify")
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                Button(
-                    onClick = { loginInTerminal() },
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(Icons.Default.Login, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Login in terminal (gh)")
-                }
+            Spacer(Modifier.height(12.dp))
+            Button(
+                onClick = { loginInTerminal() },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Login, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Login in terminal (gh)")
             }
-            Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Spacer(Modifier.height(12.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 OutlinedButton(
                     onClick = {
                         if (username.isBlank() && token.isBlank()) {
@@ -218,7 +238,9 @@ fun GitHubSettingsSection(
                         navController.navigate(MainActivityRoutes.GitHubRepos.route)
                     },
                     modifier = Modifier.weight(1f)
-                ) { Text("View my repos") }
+                ) {
+                    Text("View my repos")
+                }
                 OutlinedButton(
                     onClick = {
                         val terminal = terminalViewModel.terminalView
@@ -227,14 +249,23 @@ fun GitHubSettingsSection(
                         token = ""
                         verifiedUser = null
                         toast("Logged out")
-                    }
+                    },
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Logout")
                 }
             }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Create token: github.com → Settings → Developer settings → PAT (classic) with repo scope.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Spacer(Modifier.height(4.dp))
             Text(
-                "Create token: github.com → Settings → Developer settings → PAT (classic) with repo scope. Login runs gh auth login inside your current session.",
+                "Login runs gh auth login inside your current session.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
