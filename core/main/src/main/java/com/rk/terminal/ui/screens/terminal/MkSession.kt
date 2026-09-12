@@ -213,7 +213,6 @@ object MkSession {
                 "BIN=${localBinDir()}",
                 "DEBUG=${BuildConfig.DEBUG}",
                 "PREFIX=${filesDir.parentFile!!.path}",
-                "LD_LIBRARY_PATH=${localLibDir().absolutePath}",
                 "LINKER=${if (File("/system/bin/linker64").exists()) "/system/bin/linker64" else "/system/bin/linker"}",
                 "NATIVE_LIB_DIR=${applicationInfo.nativeLibraryDir}",
                 "PKG=${packageName}",
@@ -231,6 +230,14 @@ object MkSession {
             val loader32 = "${applicationInfo.nativeLibraryDir}/libloader32.so"
             if (File(loader32).exists()) {
                 env.add("PROOT_LOADER_32=$loader32")
+            }
+
+            // Host tools (pm/cmd/am run via app_process) break when the loader
+            // is forced into our native lib dir first (colliding libc++ etc.:
+            // "Failed transaction (2147483646)"). Only distro/proot sessions
+            // need it for libproot/libloader — ANDROID keeps the system default.
+            if (workingMode != WorkingMode.ANDROID) {
+                env.add("LD_LIBRARY_PATH=${localLibDir().absolutePath}")
             }
 
             env.addAll(envVariables.map { "${it.key}=${it.value}" })
