@@ -14,6 +14,7 @@ import com.rk.components.compose.preferences.base.PreferenceGroup
 import com.rk.libcommons.*
 import com.rk.resources.strings
 import com.rk.settings.Settings
+import com.rk.terminal.root.hasRootAccess
 import com.rk.terminal.ui.activities.terminal.MainActivity
 import com.rk.terminal.ui.screens.settings.SettingsCard
 import com.rk.terminal.ui.screens.settings.WorkingMode
@@ -22,21 +23,7 @@ import com.rk.terminal.ui.screens.terminal.Rootfs
 import com.rk.terminal.ui.screens.terminal.TerminalScreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.io.FileOutputStream
-
-private fun hasRootAccess(): Boolean {
-    val paths = listOf("/system/bin/su", "/system/xbin/su", "/sbin/su", "/su/bin/su")
-    if (paths.none { File(it).exists() }) return false
-    return try {
-        val process = ProcessBuilder("su", "-c", "id").redirectErrorStream(true).start()
-        val output = process.inputStream.bufferedReader().readText()
-        val exited = process.waitFor()
-        exited == 0 && output.contains("uid=0")
-    } catch (e: Exception) {
-        false
-    }
-}
 
 @Composable
 fun SetupScreen(

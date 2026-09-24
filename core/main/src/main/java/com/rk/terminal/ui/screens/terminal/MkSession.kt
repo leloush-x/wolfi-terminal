@@ -15,6 +15,7 @@ import com.rk.settings.Settings
 import com.rk.terminal.App.Companion.getTempDir
 import com.rk.terminal.BuildConfig
 import com.rk.terminal.root.SheveryManager
+import com.rk.terminal.root.isSuVisible
 import com.rk.terminal.ui.screens.settings.WorkingMode
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
@@ -103,9 +104,7 @@ object MkSession {
 
             // Best-effort su visibility check (SELinux can still block an
             // otherwise visible binary; the init script re-checks for real).
-            val suVisible = listOf(
-                "/system/bin/su", "/sbin/su", "/system/xbin/su", "/su/bin/su"
-            ).any { File(it).canExecute() }
+            val suVisible = isSuVisible()
 
             // NON-ROOT Shevery path: no root daemon and no local su, so a
             // chroot here would die with 127. Run the distro via proot
@@ -422,9 +421,7 @@ object MkSession {
                 SheveryManager.serverUid.value == 0
             val rishAdb = rishBin != null && SheveryManager.hasElevatedAccess && !rishRoot &&
                 (wantSheveryScript || Settings.auto_rish)
-            val suVisible = listOf(
-                "/system/bin/su", "/sbin/su", "/system/xbin/su", "/su/bin/su"
-            ).any { File(it).canExecute() }
+            val suVisible = isSuVisible()
             val useChroot = execMode == ExecMode.CHROOT ||
                 (wantSheveryScript && (rishRoot || suVisible))
             if (wantSheveryScript && !rishRoot && !suVisible && !rishAdb) {
