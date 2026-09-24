@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   test:
-    name: Lint & Unit Tests
+    name: Unit Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -51,7 +51,7 @@ jobs:
   build-release:
     name: Build & Release
     runs-on: ubuntu-latest
-    # A failing test/lint job blocks the release. Releases only ship from main.
+    # A failing test job blocks the release. Releases only ship from main.
     needs: test
     if: github.ref == 'refs/heads/main'
 
