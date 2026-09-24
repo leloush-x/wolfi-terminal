@@ -16,6 +16,12 @@ on:
 permissions:
   contents: write
 
+# One run per branch: a newer push supersedes the previous one instead of
+# queueing behind it and racing it for the rolling release.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     name: Unit Tests
@@ -30,6 +36,16 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           cache: gradle
+
+      # setup-java only caches ~/.gradle. Robolectric resolves its
+      # android-all jars into ~/.m2, which is cold on every run otherwise.
+      - name: Cache Robolectric jars
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository/org/robolectric
+          key: robolectric-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', '**/src/test/**/*.kt') }}
+          restore-keys: |
+            robolectric-${{ runner.os }}-
 
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
@@ -49,10 +65,11 @@ jobs:
           if-no-files-found: ignore
 
   build-release:
-    name: Build & Release
+    name: Build APK
     runs-on: ubuntu-latest
-    # A failing test job blocks the release. Releases only ship from main.
-    needs: test
+    # Deliberately NOT `needs: test` — the two jobs run side by side. The
+    # publish job below is the gate, so an APK is built even when tests fail,
+    # but nothing is released unless both succeed.
     if: github.ref == 'refs/heads/main'
 
     steps:
@@ -87,9 +104,6 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Set Commit Hash
-        run: echo "COMMIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
-
       - name: Build release APK
         run: ./gradlew assembleRelease --parallel
 
@@ -98,6 +112,40 @@ jobs:
 
       - name: Delete xed.keystore and signing.properties
         run: rm -f /tmp/xed.keystore /tmp/signing.properties
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: app/wolfi-terminal-latest.apk
+          if-no-files-found: error
+
+  publish:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    needs: [test, build-release]
+    # The gate. Success requires tests AND a built APK, which is the same
+    # guarantee the old `needs: test` provided — just without serialising
+    # the two jobs. On non-main branches build-release is skipped, so this
+    # job is skipped too.
+    if: always() && needs.test.result == 'success' && needs.build-release.result == 'success'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download APK
+        uses: actions/download-artifact@v4
+        with:
+          name: release-apk
+          path: app
+
+      - name: Verify APK
+        run: |
+          ls -la app
+          test -s app/wolfi-terminal-latest.apk
+
+      - name: Set Commit Hash
+        run: echo "COMMIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
       - name: Publish to rolling release
         uses: softprops/action-gh-release@v2
