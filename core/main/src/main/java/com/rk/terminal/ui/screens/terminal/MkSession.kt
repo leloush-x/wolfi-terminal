@@ -54,6 +54,19 @@ object MkSession {
         return null
     }
 
+    /**
+     * Run [args] through the elevated rish shell. The privileged process must
+     * inherit the environment this app built (PREFIX, BIN, LD_LIBRARY_PATH, …),
+     * hence RISH_PRESERVE_ENV.
+     */
+    private fun rishCommand(rish: File, args: Array<String>, workingDir: String?): PendingCommand =
+        PendingCommand(
+            shell = rish.absolutePath,
+            args = args,
+            workingDir = workingDir,
+            env = listOf("RISH_PRESERVE_ENV=1")
+        )
+
     fun createSession(
         context: Context,
         sessionClient: TerminalSessionClient,
@@ -261,38 +274,20 @@ object MkSession {
             val shell: String
             var wrappingRish = false
             if (pendingCommand == null) {
-                if (workingMode == WorkingMode.ALPINE) {
-                    val targetInit = if (useChroot) initChrootFile else initFile
-                    if (sheveryChrootReady) {
-                        wrappingRish = true
-                        shell = rishBin!!.absolutePath
-                        args = arrayOf("-c", targetInit.absolutePath)
-                    } else if (rishAdbReady && !useChroot) {
-                        // ADB-mode: proot under the shell uid — adb/host commands
-                        // work with shell permissions inside and outside the distro.
-                        wrappingRish = true
-                        shell = rishBin!!.absolutePath
-                        args = arrayOf("-c", targetInit.absolutePath)
+                if (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI) {
+                    val targetInit = if (workingMode == WorkingMode.WOLFI) {
+                        if (useChroot) initWolfiChrootFile else initWolfiFile
                     } else {
-                        shell = "/system/bin/sh"
-                        args = arrayOf("-c", targetInit.absolutePath)
+                        if (useChroot) initChrootFile else initFile
                     }
-                } else if (workingMode == WorkingMode.WOLFI) {
-                    val targetInit = if (useChroot) initWolfiChrootFile else initWolfiFile
-                    if (sheveryChrootReady) {
-                        wrappingRish = true
-                        shell = rishBin!!.absolutePath
-                        args = arrayOf("-c", targetInit.absolutePath)
-                    } else if (rishAdbReady && !useChroot) {
-                        // ADB-mode: proot under the shell uid — adb/host commands
-                        // work with shell permissions inside and outside the distro.
-                        wrappingRish = true
-                        shell = rishBin!!.absolutePath
-                        args = arrayOf("-c", targetInit.absolutePath)
-                    } else {
-                        shell = "/system/bin/sh"
-                        args = arrayOf("-c", targetInit.absolutePath)
-                    }
+                    // Elevate through rish when the manager grants it: the root
+                    // daemon can chroot, the ADB/shell daemon only runs proot
+                    // (host commands work with shell permissions either way).
+                    // The ADB daemon cannot mount, so never wrap a chroot.
+                    val useRish = sheveryChrootReady || (rishAdbReady && !useChroot)
+                    if (useRish) wrappingRish = true
+                    shell = if (useRish) rishBin!!.absolutePath else "/system/bin/sh"
+                    args = arrayOf("-c", targetInit.absolutePath)
                 } else {
                     // ANDROID host shell, optionally elevated via rish.
                     if (rishBin != null && Settings.auto_rish &&
@@ -340,12 +335,7 @@ object MkSession {
         // the manager grants it (root or ADB), so adb/host commands work.
         if (Settings.auto_rish) {
             resolveRish(context)?.takeIf { SheveryManager.hasElevatedAccess }?.let { rish ->
-                return PendingCommand(
-                    shell = rish.absolutePath,
-                    args = arrayOf("-c", scriptFile.absolutePath),
-                    workingDir = workingDir,
-                    env = listOf("RISH_PRESERVE_ENV=1")
-                )
+                return rishCommand(rish, arrayOf("-c", scriptFile.absolutePath), workingDir)
             }
         }
 
@@ -434,37 +424,19 @@ object MkSession {
                 else -> "init-host"
             }
             val initFile = context.localBinDir().child(binName)
-            if (rishRoot) {
-                PendingCommand(
-                    shell = rishBin!!.absolutePath,
-                    args = arrayOf("-c", initFile.absolutePath, "sh", script.absolutePath),
-                    workingDir = workingDir,
-                    env = listOf("RISH_PRESERVE_ENV=1")
-                )
-            } else if (rishAdb && !useChroot) {
-                PendingCommand(
-                    shell = rishBin!!.absolutePath,
-                    args = arrayOf("-c", initFile.absolutePath, "sh", script.absolutePath),
-                    workingDir = workingDir,
-                    env = listOf("RISH_PRESERVE_ENV=1")
-                )
-            } else {
-                PendingCommand(
-                    shell = "/system/bin/sh",
-                    args = arrayOf("-c",initFile.absolutePath,"sh",script.absolutePath),
-                    workingDir = workingDir,
-                    env = null
-                )
-            }
+            // Same elevation rule as interactive sessions: rish for a root
+            // daemon, and for the ADB daemon too when this is not a chroot.
+            val useRish = rishRoot || (rishAdb && !useChroot)
+            PendingCommand(
+                shell = if (useRish) rishBin!!.absolutePath else "/system/bin/sh",
+                args = arrayOf("-c", initFile.absolutePath, "sh", script.absolutePath),
+                workingDir = workingDir,
+                env = if (useRish) listOf("RISH_PRESERVE_ENV=1") else null
+            )
         } else {
             val rishBin = if (Settings.auto_rish) resolveRish(context) else null
             if (rishBin != null && SheveryManager.hasElevatedAccess) {
-                PendingCommand(
-                    shell = rishBin.absolutePath,
-                    args = arrayOf("-c", script.absolutePath),
-                    workingDir = workingDir,
-                    env = listOf("RISH_PRESERVE_ENV=1")
-                )
+                rishCommand(rishBin, arrayOf("-c", script.absolutePath), workingDir)
             } else {
                 PendingCommand(
                     shell = "/system/bin/sh",
