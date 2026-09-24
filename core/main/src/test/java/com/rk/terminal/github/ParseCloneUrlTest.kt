@@ -27,7 +27,7 @@ class ParseCloneUrlTest {
     }
 
     @Test
-    fun `trailing slash and .git suffix are preserved`() {
+    fun `trailing slash and the git suffix are preserved`() {
         assertEquals(
             "https://github.com/owner/repo",
             GitHubManager.parseCloneUrl("https://github.com/owner/repo/")
