@@ -23,7 +23,7 @@ android {
             val propertiesFilePath = if (isGITHUB_ACTION) {
                 "/tmp/signing.properties"
             } else {
-                "/home/rohit/Android/xed-signing/signing.properties"
+                System.getenv("SIGNING_PROPERTIES") ?: rootProject.file("signing.properties").path
             }
             
             val propertiesFile = File(propertiesFilePath)

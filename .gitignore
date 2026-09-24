@@ -20,3 +20,8 @@ Todo.md
 **/build
 .vscode
 core/wasm3
+signing.properties
+*.keystore
+*.jks
+!app/testkey.keystore
+
