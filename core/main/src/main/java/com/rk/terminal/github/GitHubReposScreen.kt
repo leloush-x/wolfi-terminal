@@ -82,6 +82,7 @@ fun GitHubReposScreen(
     var loading by remember { mutableStateOf(true) }
     var error by remember { mutableStateOf<String?>(null) }
     var cloning by remember { mutableStateOf<String?>(null) }
+    var url by remember { mutableStateOf("") }
 
     val username = remember { GitHubManager.username() }
     val token = remember { GitHubManager.token() }
@@ -89,7 +90,8 @@ fun GitHubReposScreen(
     fun load() {
         if (username.isBlank() && token.isBlank()) {
             loading = false
-            error = "Add your GitHub username or token in Settings → GitHub first."
+            error = "Add your GitHub username or token in Settings → GitHub to list repos — " +
+                "or paste a repository URL above to clone without signing in."
             return
         }
         loading = true
@@ -115,18 +117,20 @@ fun GitHubReposScreen(
 
     LaunchedEffect(Unit) { load() }
 
-    fun clone(repo: GitHubRepo) {
-        val cmd = GitHubManager.cloneCommand(repo, token.ifBlank { null })
+    /**
+     * Shared by the repo list and the URL box: run the clone in the live
+     * session, or hand the command over when there isn't one.
+     */
+    fun runClone(cmd: String, label: String, onDone: () -> Unit = {}) {
         val terminal = terminalViewModel.terminalView
-        cloning = repo.fullName
         scope.launch {
             // Brief animated feedback so the tap feels alive even before the
             // command lands in the pty.
             kotlinx.coroutines.delay(450)
             val ok = GitHubManager.sendToTerminal(terminal, cmd)
-            cloning = null
+            onDone()
             if (ok) {
-                toast("Cloning ${repo.fullName} in terminal")
+                toast("Cloning $label in terminal")
                 navController.popBackStack()
             } else {
                 // No live session — keep command on clipboard so nothing is lost.
@@ -134,6 +138,27 @@ fun GitHubReposScreen(
                 toast("No live session — clone command copied")
             }
         }
+    }
+
+    fun clone(repo: GitHubRepo) {
+        cloning = repo.fullName
+        runClone(GitHubManager.cloneCommand(repo, token.ifBlank { null }), repo.fullName) {
+            cloning = null
+        }
+    }
+
+    /**
+     * Clone straight from a pasted URL. Public repos are anonymous over
+     * HTTPS, so this needs no username or token — it stays usable on a
+     * screen that is otherwise dead-ended until Settings are filled in.
+     */
+    fun cloneFromUrl() {
+        val target = GitHubManager.parseCloneUrl(url)
+        if (target == null) {
+            toast("That doesn't look like a repository URL")
+            return
+        }
+        runClone("git clone $target", target.substringAfterLast('/'))
     }
 
     PreferenceLayout(
@@ -146,6 +171,27 @@ fun GitHubReposScreen(
             modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
+            // Deliberately first and independent of Settings: a pasted URL
+            // clones anonymously, so the screen still does something useful
+            // before any username or token exists.
+            OutlinedTextField(
+                value = url,
+                onValueChange = { url = it },
+                label = { Text("Clone from URL — no login needed") },
+                placeholder = { Text("https://github.com/owner/repo") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(14.dp),
+                trailingIcon = {
+                    IconButton(
+                        onClick = { cloneFromUrl() },
+                        enabled = url.isNotBlank()
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = "Clone from URL")
+                    }
+                }
+            )
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
