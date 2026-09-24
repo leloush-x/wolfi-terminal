@@ -99,5 +99,4 @@ dependencies {
     testImplementation(libs.junit)
     testImplementation(libs.androidx.test.junit)
     testImplementation(libs.tests.robolectric)
-    testImplementation(libs.tests.google.truth)
 }
