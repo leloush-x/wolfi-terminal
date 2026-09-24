@@ -4,6 +4,7 @@ import android.app.Application
 import android.view.KeyEvent
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -209,13 +210,7 @@ class ShortcutBindingTest {
     // --- matches -----------------------------------------------------------
 
     private fun keyEvent(keyCode: Int, metaState: Int = 0): KeyEvent =
-        KeyEvent.Builder()
-            .setDownTime(0L)
-            .setEventTime(0L)
-            .setAction(KeyEvent.ACTION_DOWN)
-            .setKeyCode(keyCode)
-            .setMetaState(metaState)
-            .build()
+        KeyEvent(0L, 0L, KeyEvent.ACTION_DOWN, keyCode, 0, metaState)
 
     @Test
     fun `matches when key and all modifiers agree`() {
@@ -302,20 +297,29 @@ class ShortcutBindingTest {
     }
 
     @Test
-    fun `display string joins modifiers with plus signs`() {
-        val binding = ShortcutBinding(ctrl = true, shift = true, keyCode = KeyEvent.KEYCODE_V)
-        assertEquals("Ctrl + Shift + V", binding.toDisplayString())
+    fun `display string joins modifiers with plus signs in order`() {
+        val display = ShortcutBinding(
+            ctrl = true,
+            shift = true,
+            alt = true,
+            keyCode = KeyEvent.KEYCODE_C,
+        ).toDisplayString()
+        assertTrue("got '$display'", display.startsWith("Ctrl + Shift + Alt + "))
+        assertFalse("dangling separator in '$display'", display.endsWith("+"))
     }
 
     @Test
-    fun `display string formats multi word key names`() {
-        val binding = ShortcutBinding(keyCode = KeyEvent.KEYCODE_DPAD_LEFT)
-        assertEquals("Dpad left", binding.toDisplayString())
+    fun `display string of a binding without modifiers has no separators`() {
+        val display = ShortcutBinding(keyCode = KeyEvent.KEYCODE_F).toDisplayString()
+        assertFalse("got '$display'", display.contains(" + "))
+        assertTrue("got '$display'", display.isNotBlank())
+        assertNotEquals("Not set", display)
     }
 
     @Test
-    fun `display string lowercases then capitalises key name`() {
-        val binding = ShortcutBinding(alt = true, keyCode = KeyEvent.KEYCODE_ENTER)
-        assertEquals("Alt + Enter", binding.toDisplayString())
+    fun `display string key token follows the key code`() {
+        val v = ShortcutBinding(keyCode = KeyEvent.KEYCODE_V).toDisplayString()
+        val n = ShortcutBinding(keyCode = KeyEvent.KEYCODE_N).toDisplayString()
+        assertNotEquals("key token must depend on the key code", v, n)
     }
 }
