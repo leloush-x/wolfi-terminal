@@ -3,7 +3,7 @@ name: Build & Release APK
 on:
   push:
     branches:
-      - main
+      - '**'
     paths-ignore:
       - '**/*.md'
   workflow_dispatch:
@@ -17,9 +17,43 @@ permissions:
   contents: write
 
 jobs:
+  test:
+    name: Lint & Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Accept Android SDK licenses
+        run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run unit tests
+        run: ./gradlew testDebugUnitTest --parallel --stacktrace
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-reports
+          path: '**/build/reports/tests/'
+          if-no-files-found: ignore
+
   build-release:
     name: Build & Release
     runs-on: ubuntu-latest
+    # A failing test/lint job blocks the release. Releases only ship from main.
+    needs: test
+    if: github.ref == 'refs/heads/main'
 
     steps:
       - uses: actions/checkout@v4

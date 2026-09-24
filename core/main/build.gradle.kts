@@ -56,9 +56,12 @@ android {
         compose = true
     }
 
-
-
-
+    testOptions {
+        unitTests {
+            isIncludeAndroidResources = true
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
@@ -92,4 +95,9 @@ dependencies {
     implementation(libs.shizuku.provider)
     implementation("com.github.termux.termux-app:terminal-view:v0.118.3")
     implementation("com.github.termux.termux-app:terminal-emulator:v0.118.3")
+
+    testImplementation(libs.junit)
+    testImplementation(libs.androidx.test.junit)
+    testImplementation(libs.tests.robolectric)
+    testImplementation(libs.tests.google.truth)
 }
