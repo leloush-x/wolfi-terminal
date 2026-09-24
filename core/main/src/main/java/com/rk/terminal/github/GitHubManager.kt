@@ -128,6 +128,41 @@ object GitHubManager {
         return "git clone ${authedCloneUrl(repo, token)}"
     }
 
+    /** `git@host:owner/repo.git` */
+    private val scpLike = Regex("^[\\w.-]+@[\\w.-]+:[\\w./-]+$")
+
+    /** `owner/repo` — shorthand that only GitHub can be assumed for. */
+    private val shorthand = Regex("^[\\w.-]+/[\\w.-]+$")
+
+    /** `scheme://host/path` — host may be empty (file:///...), path may not. */
+    private val schemeUrl = Regex("^[a-zA-Z][\\w+.-]*://[^/\\s]*/[^\\s]+$")
+
+    /**
+     * Turn whatever the user pasted into something `git clone` accepts, or
+     * null when it does not look like a repository at all.
+     *
+     * Deliberately host-agnostic — any git server works — but strict about
+     * shape, because the result goes straight into a shell command. A bare
+     * `owner/repo` is resolved to GitHub since nothing else can be assumed.
+     */
+    fun parseCloneUrl(raw: String): String? {
+        val input = raw.trim().trimEnd('/')
+        if (input.isEmpty() || input.any { it.isWhitespace() }) return null
+
+        val candidate = when {
+            input.contains("://") -> input
+            scpLike.matches(input) -> input
+            shorthand.matches(input) -> "https://github.com/$input.git"
+            input.substringBefore('/').contains('.') -> "https://$input"
+            else -> return null
+        }
+
+        // Reject pastes that normalized but still have no path, e.g.
+        // "https://github.com" or a scheme with nothing after it.
+        if (!schemeUrl.matches(candidate) && !scpLike.matches(candidate)) return null
+        return candidate
+    }
+
     private fun shellQuote(s: String): String = "'" + s.replace("'", "'\\''") + "'"
 
     /**
