@@ -25,3 +25,4 @@ signing.properties
 *.jks
 !app/testkey.keystore
 
+out/
