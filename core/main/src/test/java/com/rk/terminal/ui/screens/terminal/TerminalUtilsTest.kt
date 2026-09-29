@@ -62,6 +62,16 @@ class TerminalUtilsTest {
     }
 
     @Test
+    fun `working mode 3 is debian`() {
+        assertEquals("debian", TerminalUtils.getNameOfWorkingMode(3))
+    }
+
+    @Test
+    fun `working mode 4 is void`() {
+        assertEquals("void", TerminalUtils.getNameOfWorkingMode(4))
+    }
+
+    @Test
     fun `null working mode is unknown`() {
         assertEquals("unknown", TerminalUtils.getNameOfWorkingMode(null))
     }
@@ -69,7 +79,6 @@ class TerminalUtilsTest {
     @Test
     fun `out of range working mode is unknown`() {
         assertEquals("unknown", TerminalUtils.getNameOfWorkingMode(-1))
-        assertEquals("unknown", TerminalUtils.getNameOfWorkingMode(3))
         assertEquals("unknown", TerminalUtils.getNameOfWorkingMode(99))
     }
 
