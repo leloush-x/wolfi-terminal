@@ -43,10 +43,14 @@ import java.net.URL
 @Composable
 fun WolfiDownloadScreen(
     modifier: Modifier = Modifier,
+    distro: String = "wolfi",
     onCancel: () -> Unit,
     onComplete: () -> Unit
 ) {
     val context = LocalContext.current
+    val distroLower = distro.lowercase()
+    val displayName = distroLower.replaceFirstChar { it.uppercase() }
+    val tarName = "$distroLower.tar.gz"
     val installingStr = stringResource(strings.installing)
     val setupFailedStr = stringResource(strings.setup_failed)
     val cancelStr = stringResource(strings.cancel)
@@ -70,15 +74,15 @@ fun WolfiDownloadScreen(
                     statusText = installingStr
                 }
                 withContext(Dispatchers.Main) {
-                    statusText = "Resolving latest Wolfi release…"
+                    statusText = "Resolving latest $displayName release…"
                 }
-                val (tag, url) = WolfiRepo.fetchLatest()
+                val (tag, url) = WolfiRepo.fetchLatestFor(distroLower)
                 withContext(Dispatchers.Main) {
                     versionTag = tag
-                    statusText = "Downloading Wolfi $tag…"
+                    statusText = "Downloading $displayName $tag…"
                 }
-                val outputFile = context.filesDir.child("wolfi.tar.gz")
-                val partFile = File(outputFile.parent, "wolfi.tar.gz.part")
+                val outputFile = context.filesDir.child(tarName)
+                val partFile = File(outputFile.parent, "$tarName.part")
                 downloadState.connection?.disconnect()
                 val conn = (URL(url).openConnection() as HttpURLConnection).apply {
                     requestMethod = "GET"
@@ -125,13 +129,17 @@ fun WolfiDownloadScreen(
                 }
                 withContext(Dispatchers.Main) {
                     progress = 1f
-                    Settings.wolfi_version = tag
+                    when (distroLower) {
+                        "debian" -> Settings.debian_version = tag
+                        "void" -> Settings.void_version = tag
+                        else -> Settings.wolfi_version = tag
+                    }
                     onComplete()
                 }
             } catch (e: InterruptedException) {
                 withContext(Dispatchers.Main) {
                     runCatching {
-                        File(context.filesDir, "wolfi.tar.gz.part").delete()
+                        File(context.filesDir, "$tarName.part").delete()
                     }
                     if (!cancelled) error = e.message
                 }
@@ -139,7 +147,7 @@ fun WolfiDownloadScreen(
                 if (cancelled) return@withContext
                 withContext(Dispatchers.Main) {
                     runCatching {
-                        File(context.filesDir, "wolfi.tar.gz.part").delete()
+                        File(context.filesDir, "$tarName.part").delete()
                     }
                     error = e.javaClass.simpleName + ": " + e.message
                     statusText = setupFailedStr.format(e.message)
@@ -162,7 +170,7 @@ fun WolfiDownloadScreen(
                         cancelled = true
                         downloadState.connection?.disconnect()
                         runCatching {
-                            File(context.filesDir, "wolfi.tar.gz.part").delete()
+                            File(context.filesDir, "$tarName.part").delete()
                         }
                         onCancel()
                     }) { Text(cancelStr) }
@@ -175,7 +183,7 @@ fun WolfiDownloadScreen(
             } else {
                 val tag = versionTag
                 Text(
-                    if (tag != null) "Downloading Wolfi $tag…" else statusText,
+                    if (tag != null) "Downloading $displayName $tag…" else statusText,
                     style = MaterialTheme.typography.bodyLarge
                 )
                 Spacer(modifier = Modifier.height(16.dp))
@@ -193,7 +201,7 @@ fun WolfiDownloadScreen(
                     downloadState.connection?.disconnect()
                     scope.launch(Dispatchers.IO) {
                         runCatching {
-                            File(context.filesDir, "wolfi.tar.gz.part").delete()
+                            File(context.filesDir, "$tarName.part").delete()
                         }
                         withContext(Dispatchers.Main) { onCancel() }
                     }

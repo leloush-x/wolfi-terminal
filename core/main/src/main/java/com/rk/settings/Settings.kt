@@ -106,6 +106,14 @@ object Settings {
         get() = Preference.getString(key = "wolfi_version", default = "")
         set(value) = Preference.setString(key = "wolfi_version", value)
 
+    var debian_version
+        get() = Preference.getString(key = "debian_version", default = "")
+        set(value) = Preference.setString(key = "debian_version", value)
+
+    var void_version
+        get() = Preference.getString(key = "void_version", default = "")
+        set(value) = Preference.setString(key = "void_version", value)
+
     /** Login shell for Linux sessions. bash by default, falls back to distro default if missing. */
     var login_shell
         get() = Preference.getString(key = "login_shell", default = "/bin/bash")

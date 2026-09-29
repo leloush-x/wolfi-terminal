@@ -3,6 +3,10 @@ package com.rk.terminal.ui.screens.terminal
 import android.content.Context
 import com.rk.libcommons.alpineDir
 import com.rk.libcommons.alpineHomeDir
+import com.rk.libcommons.debianDir
+import com.rk.libcommons.debianHomeDir
+import com.rk.libcommons.voidDir
+import com.rk.libcommons.voidHomeDir
 import com.rk.libcommons.child
 import com.rk.libcommons.createFileIfNot
 import com.rk.libcommons.localBinDir
@@ -87,10 +91,11 @@ object MkSession {
                 "EXTERNAL_STORAGE" to System.getenv("EXTERNAL_STORAGE")
             )
 
-            val workingDir = pendingCommand?.workingDir ?: if (workingMode == WorkingMode.WOLFI) {
-                wolfiHomeDir().path
-            } else {
-                alpineHomeDir().path
+            val workingDir = pendingCommand?.workingDir ?: when (workingMode) {
+                WorkingMode.WOLFI -> wolfiHomeDir().path
+                WorkingMode.DEBIAN -> debianHomeDir().path
+                WorkingMode.VOID -> voidHomeDir().path
+                else -> alpineHomeDir().path
             }
 
             val execMode = Rootfs.execMode.value
@@ -125,12 +130,12 @@ object MkSession {
             // Plain CHROOT and local-su fallbacks are untouched.
             val sheveryProotFallback = wantShevery && !sheveryChrootReady && !suVisible &&
                 pendingCommand == null &&
-                (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI)
+                (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI || workingMode == WorkingMode.DEBIAN || workingMode == WorkingMode.VOID)
             val useChroot = execMode == ExecMode.CHROOT ||
                 (wantShevery && !sheveryProotFallback)
 
             if (wantShevery && !sheveryChrootReady && pendingCommand == null &&
-                (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI)
+                (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI || workingMode == WorkingMode.DEBIAN || workingMode == WorkingMode.VOID)
             ) {
                 when {
                     rishAdbReady -> {
@@ -165,20 +170,30 @@ object MkSession {
             // Early hint for plain chroot without any visible su: the init
             // script will fail at the first mount otherwise.
             if (!wantShevery && useChroot && !suVisible && pendingCommand == null &&
-                (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI)
+                (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI || workingMode == WorkingMode.DEBIAN || workingMode == WorkingMode.VOID)
             ) {
                 toast("No su visible to the app — chroot will fail; use Proot or Chroot (Shevery)")
             }
 
             val loginShell = Settings.login_shell
             if (loginShell.isNotBlank() && loginShell.endsWith("bash") &&
-                (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI) &&
+                (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI || workingMode == WorkingMode.DEBIAN || workingMode == WorkingMode.VOID) &&
                 !warnedMissingBash
             ) {
-                val root = if (workingMode == WorkingMode.WOLFI) wolfiDir() else alpineDir()
+                val root = when (workingMode) {
+                    WorkingMode.WOLFI -> wolfiDir()
+                    WorkingMode.DEBIAN -> debianDir()
+                    WorkingMode.VOID -> voidDir()
+                    else -> alpineDir()
+                }
                 if (!root.child("bin/bash").exists()) {
                     warnedMissingBash = true
-                    toast("bash not found — install it first: apk add bash")
+                    val hint = when (workingMode) {
+                        WorkingMode.DEBIAN -> "apt update && apt install -y bash"
+                        WorkingMode.VOID -> "xbps-install -S bash"
+                        else -> "apk add bash"
+                    }
+                    toast("bash not found — install it first: $hint")
                 }
             }
 
@@ -197,13 +212,23 @@ object MkSession {
             installAssetBin("init-host-chroot", "init-host-chroot.sh")
             installAssetBin("init-wolfi-host", "init-wolfi-host.sh")
             installAssetBin("init-wolfi-host-chroot", "init-wolfi-host-chroot.sh")
+            installAssetBin("init-debian-host", "init-debian-host.sh")
+            installAssetBin("init-debian-host-chroot", "init-debian-host-chroot.sh")
+            installAssetBin("init-void-host", "init-void-host.sh")
+            installAssetBin("init-void-host-chroot", "init-void-host-chroot.sh")
             installAssetBin("init", "init.sh")
             installAssetBin("init-wolfi", "init-wolfi.sh")
+            installAssetBin("init-debian", "init-debian.sh")
+            installAssetBin("init-void", "init-void.sh")
 
             val initFile: File = localBinDir().child("init-host")
             val initChrootFile: File = localBinDir().child("init-host-chroot")
             val initWolfiFile: File = localBinDir().child("init-wolfi-host")
             val initWolfiChrootFile: File = localBinDir().child("init-wolfi-host-chroot")
+            val initDebianFile: File = localBinDir().child("init-debian-host")
+            val initDebianChrootFile: File = localBinDir().child("init-debian-host-chroot")
+            val initVoidFile: File = localBinDir().child("init-void-host")
+            val initVoidChrootFile: File = localBinDir().child("init-void-host-chroot")
 
             localBinDir().child("rm").apply {
                 if (exists().not()) {
@@ -274,11 +299,12 @@ object MkSession {
             val shell: String
             var wrappingRish = false
             if (pendingCommand == null) {
-                if (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI) {
-                    val targetInit = if (workingMode == WorkingMode.WOLFI) {
-                        if (useChroot) initWolfiChrootFile else initWolfiFile
-                    } else {
-                        if (useChroot) initChrootFile else initFile
+                if (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI || workingMode == WorkingMode.DEBIAN || workingMode == WorkingMode.VOID) {
+                    val targetInit = when (workingMode) {
+                        WorkingMode.WOLFI -> if (useChroot) initWolfiChrootFile else initWolfiFile
+                        WorkingMode.DEBIAN -> if (useChroot) initDebianChrootFile else initDebianFile
+                        WorkingMode.VOID -> if (useChroot) initVoidChrootFile else initVoidFile
+                        else -> if (useChroot) initChrootFile else initFile
                     }
                     // Elevate through rish when the manager grants it: the root
                     // daemon can chroot, the ADB/shell daemon only runs proot
@@ -400,7 +426,7 @@ object MkSession {
                     env = null
                 )
             }
-        } else if (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI) {
+        } else if (workingMode == WorkingMode.ALPINE || workingMode == WorkingMode.WOLFI || workingMode == WorkingMode.DEBIAN || workingMode == WorkingMode.VOID) {
             val execMode = Rootfs.execMode.value
             val wantSheveryScript = execMode == ExecMode.SHEVERY
             // One-shot script: rish when the manager grants root (chroot) or
@@ -420,6 +446,10 @@ object MkSession {
             val binName = when {
                 workingMode == WorkingMode.WOLFI && useChroot -> "init-wolfi-host-chroot"
                 workingMode == WorkingMode.WOLFI -> "init-wolfi-host"
+                workingMode == WorkingMode.DEBIAN && useChroot -> "init-debian-host-chroot"
+                workingMode == WorkingMode.DEBIAN -> "init-debian-host"
+                workingMode == WorkingMode.VOID && useChroot -> "init-void-host-chroot"
+                workingMode == WorkingMode.VOID -> "init-void-host"
                 useChroot -> "init-host-chroot"
                 else -> "init-host"
             }

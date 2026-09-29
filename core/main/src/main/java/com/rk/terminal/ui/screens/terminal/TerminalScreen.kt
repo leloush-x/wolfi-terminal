@@ -59,6 +59,8 @@ fun TerminalScreen(
     val drawerWidth = (configuration.screenWidthDp * 0.84).dp
     var showAddDialog by remember { mutableStateOf(false) }
     var showWolfiDownloader by remember { mutableStateOf(false) }
+    var showDebianDownloader by remember { mutableStateOf(false) }
+    var showVoidDownloader by remember { mutableStateOf(false) }
     var showAlpineSetup by remember { mutableStateOf(false) }
 
     val sessionBinder = mainViewModel.sessionBinder
@@ -72,6 +74,38 @@ fun TerminalScreen(
                 val client = TerminalBackEnd(terminal, mainActivity)
                 val sessionId = generateUniqueSessionId(sessionBinder.getService().sessionList.keys.toList())
                 sessionBinder.createSession(sessionId, client, WorkingMode.WOLFI)
+                terminalViewModel.changeSession(context, sessionBinder, sessionId)
+            }
+        )
+        return
+    }
+
+    if (showDebianDownloader && sessionBinder != null) {
+        WolfiDownloadScreen(
+            distro = "debian",
+            onCancel = { showDebianDownloader = false },
+            onComplete = {
+                showDebianDownloader = false
+                val terminal = terminalViewModel.terminalView ?: return@WolfiDownloadScreen
+                val client = TerminalBackEnd(terminal, mainActivity)
+                val sessionId = generateUniqueSessionId(sessionBinder.getService().sessionList.keys.toList())
+                sessionBinder.createSession(sessionId, client, WorkingMode.DEBIAN)
+                terminalViewModel.changeSession(context, sessionBinder, sessionId)
+            }
+        )
+        return
+    }
+
+    if (showVoidDownloader && sessionBinder != null) {
+        WolfiDownloadScreen(
+            distro = "void",
+            onCancel = { showVoidDownloader = false },
+            onComplete = {
+                showVoidDownloader = false
+                val terminal = terminalViewModel.terminalView ?: return@WolfiDownloadScreen
+                val client = TerminalBackEnd(terminal, mainActivity)
+                val sessionId = generateUniqueSessionId(sessionBinder.getService().sessionList.keys.toList())
+                sessionBinder.createSession(sessionId, client, WorkingMode.VOID)
                 terminalViewModel.changeSession(context, sessionBinder, sessionId)
             }
         )
@@ -127,6 +161,16 @@ fun TerminalScreen(
                 if (mode == WorkingMode.WOLFI && !Rootfs.isWolfiRootfsInstalled(context)) {
                     showAddDialog = false
                     showWolfiDownloader = true
+                    return@AddSessionDialog
+                }
+                if (mode == WorkingMode.DEBIAN && !Rootfs.isDebianRootfsInstalled(context)) {
+                    showAddDialog = false
+                    showDebianDownloader = true
+                    return@AddSessionDialog
+                }
+                if (mode == WorkingMode.VOID && !Rootfs.isVoidRootfsInstalled(context)) {
+                    showAddDialog = false
+                    showVoidDownloader = true
                     return@AddSessionDialog
                 }
                 if (mode == WorkingMode.ALPINE && !Rootfs.isRootfsInstalled(context)) {
@@ -244,6 +288,16 @@ private fun AddSessionDialog(
                 title = { Text("Wolfi") },
                 description = { Text(stringResource(strings.wolfi_desc)) },
                 onClick = { onCreateSession(WorkingMode.WOLFI) }
+            )
+            SettingsCard(
+                title = { Text("Debian") },
+                description = { Text(stringResource(strings.debian_desc)) },
+                onClick = { onCreateSession(WorkingMode.DEBIAN) }
+            )
+            SettingsCard(
+                title = { Text("Void") },
+                description = { Text(stringResource(strings.void_desc)) },
+                onClick = { onCreateSession(WorkingMode.VOID) }
             )
             SettingsCard(
                 title = { Text("Android") },

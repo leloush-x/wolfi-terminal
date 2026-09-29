@@ -6,6 +6,8 @@
     <string name="default_working_mode">Default Working mode</string>
     <string name="alpine_desc">Alpine Linux</string>
     <string name="wolfi_desc">Wolfi Linux (glibc)</string>
+    <string name="debian_desc">Debian Linux (glibc, apt)</string>
+    <string name="void_desc">Void Linux (glibc, xbps)</string>
     <string name="android_desc">Wolfi Terminal Android shell</string>
     <string name="customizations">Customizations</string>
     <string name="seccomp">SECCOMP</string>

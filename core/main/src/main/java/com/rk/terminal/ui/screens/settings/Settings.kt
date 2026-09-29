@@ -75,6 +75,8 @@ object WorkingMode {
     const val ALPINE = 0
     const val ANDROID = 1
     const val WOLFI = 2
+    const val DEBIAN = 3
+    const val VOID = 4
 }
 
 object InputMode {
@@ -99,12 +101,22 @@ fun Settings(
     var defaultIsCustom by remember { mutableStateOf(Settings.default_is_custom) }
     var defaultCustomId by remember { mutableStateOf(CustomSessions.getDefaultId()) }
     var showWolfiDownloader by remember { mutableStateOf(false) }
+    var showDebianDownloader by remember { mutableStateOf(false) }
+    var showVoidDownloader by remember { mutableStateOf(false) }
     var showAlpineSetup by remember { mutableStateOf(false) }
     val wolfiScope = rememberCoroutineScope()
     var wolfiVer by remember { mutableStateOf(Settings.wolfi_version) }
     var latestWolfiTag by remember { mutableStateOf<String?>(null) }
     var checkingWolfi by remember { mutableStateOf(false) }
     var wolfiUpdateMsg by remember { mutableStateOf<String?>(null) }
+    var debianVer by remember { mutableStateOf(Settings.debian_version) }
+    var latestDebianTag by remember { mutableStateOf<String?>(null) }
+    var checkingDebian by remember { mutableStateOf(false) }
+    var debianUpdateMsg by remember { mutableStateOf<String?>(null) }
+    var voidVer by remember { mutableStateOf(Settings.void_version) }
+    var latestVoidTag by remember { mutableStateOf<String?>(null) }
+    var checkingVoid by remember { mutableStateOf(false) }
+    var voidUpdateMsg by remember { mutableStateOf<String?>(null) }
     var selectedLoginShell by remember { mutableStateOf(Settings.login_shell) }
 
     LaunchedEffect(Unit) {
@@ -126,7 +138,21 @@ fun Settings(
         Settings.working_Mode = WorkingMode.ALPINE
     }
 
-    if (showWolfiDownloader || showAlpineSetup) {
+    fun selectDebian() {
+        defaultIsCustom = false
+        Settings.default_is_custom = false
+        selectedWorkingMode = WorkingMode.DEBIAN
+        Settings.working_Mode = WorkingMode.DEBIAN
+    }
+
+    fun selectVoid() {
+        defaultIsCustom = false
+        Settings.default_is_custom = false
+        selectedWorkingMode = WorkingMode.VOID
+        Settings.working_Mode = WorkingMode.VOID
+    }
+
+    if (showWolfiDownloader || showDebianDownloader || showVoidDownloader || showAlpineSetup) {
         if (showWolfiDownloader) {
             WolfiDownloadScreen(
                 modifier = modifier,
@@ -143,6 +169,46 @@ fun Settings(
                             latestWolfiTag = Settings.wolfi_version.ifBlank { null }
                             wolfiUpdateMsg = "Updated — restart Wolfi sessions to use it"
                             toast("Wolfi updated — restart Wolfi sessions")
+                        }
+                    }
+                }
+            )
+        }
+        if (showDebianDownloader) {
+            WolfiDownloadScreen(
+                modifier = modifier,
+                distro = "debian",
+                onCancel = { showDebianDownloader = false },
+                onComplete = {
+                    showDebianDownloader = false
+                    selectDebian()
+                    wolfiScope.launch(Dispatchers.IO) {
+                        Rootfs.clearDebianSystem(context)
+                        withContext(Dispatchers.Main) {
+                            debianVer = Settings.debian_version
+                            latestDebianTag = Settings.debian_version.ifBlank { null }
+                            debianUpdateMsg = "Updated — restart Debian sessions to use it"
+                            toast("Debian updated — restart Debian sessions")
+                        }
+                    }
+                }
+            )
+        }
+        if (showVoidDownloader) {
+            WolfiDownloadScreen(
+                modifier = modifier,
+                distro = "void",
+                onCancel = { showVoidDownloader = false },
+                onComplete = {
+                    showVoidDownloader = false
+                    selectVoid()
+                    wolfiScope.launch(Dispatchers.IO) {
+                        Rootfs.clearVoidSystem(context)
+                        withContext(Dispatchers.Main) {
+                            voidVer = Settings.void_version
+                            latestVoidTag = Settings.void_version.ifBlank { null }
+                            voidUpdateMsg = "Updated — restart Void sessions to use it"
+                            toast("Void updated — restart Void sessions")
                         }
                     }
                 }
@@ -199,6 +265,28 @@ fun Settings(
                     selectWolfi()
                 } else {
                     showWolfiDownloader = true
+                }
+            }
+            WorkingModeOption(
+                title = "Debian",
+                description = stringResource(strings.debian_desc),
+                selected = !defaultIsCustom && selectedWorkingMode == WorkingMode.DEBIAN
+            ) {
+                if (Rootfs.isDebianRootfsInstalled(context)) {
+                    selectDebian()
+                } else {
+                    showDebianDownloader = true
+                }
+            }
+            WorkingModeOption(
+                title = "Void",
+                description = stringResource(strings.void_desc),
+                selected = !defaultIsCustom && selectedWorkingMode == WorkingMode.VOID
+            ) {
+                if (Rootfs.isVoidRootfsInstalled(context)) {
+                    selectVoid()
+                } else {
+                    showVoidDownloader = true
                 }
             }
             WorkingModeOption(
@@ -363,6 +451,126 @@ fun Settings(
             }
         }
 
+                PreferenceGroup(heading = "Debian updates") {
+            val debianInstalled = Rootfs.isDebianRootfsInstalled(context)
+            SettingsCard(
+                title = {
+                    Text(
+                        "Installed: ${
+                            debianVer.ifBlank {
+                                if (debianInstalled) "unknown version" else "not installed"
+                            }
+                        }"
+                    )
+                },
+                description = {
+                    Text(
+                        latestDebianTag?.let { "Latest release: $it" }
+                            ?: (debianUpdateMsg ?: "Debian rootfs")
+                    )
+                },
+                onClick = {}
+            )
+            if (debianInstalled) {
+                SettingsCard(
+                    title = { Text(if (checkingDebian) "Checking…" else "Check for updates") },
+                    onClick = {
+                        if (checkingDebian) return@SettingsCard
+                        checkingDebian = true
+                        debianUpdateMsg = null
+                        wolfiScope.launch(Dispatchers.IO) {
+                            try {
+                                val latest = WolfiRepo.fetchLatestFor("debian")
+                                withContext(Dispatchers.Main) {
+                                    checkingDebian = false
+                                    latestDebianTag = latest.first
+                                    debianUpdateMsg =
+                                        if (debianVer.isBlank() || debianVer != latest.first) {
+                                            "Update available: ${latest.first}"
+                                        } else {
+                                            "Up to date (${latest.first})"
+                                        }
+                                }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) {
+                                    checkingDebian = false
+                                    debianUpdateMsg = "Check failed: ${e.message}"
+                                }
+                            }
+                        }
+                    },
+                    isEnabled = !checkingDebian
+                )
+                if (latestDebianTag != null && (debianVer.isBlank() || debianVer != latestDebianTag)) {
+                    SettingsCard(
+                        title = { Text("Download update ($latestDebianTag)") },
+                        description = { Text("Replaces system files, keeps /root home. Restart Debian sessions after.") },
+                        onClick = { showDebianDownloader = true }
+                    )
+                }
+            }
+        }
+
+        PreferenceGroup(heading = "Void updates") {
+            val voidInstalled = Rootfs.isVoidRootfsInstalled(context)
+            SettingsCard(
+                title = {
+                    Text(
+                        "Installed: ${
+                            voidVer.ifBlank {
+                                if (voidInstalled) "unknown version" else "not installed"
+                            }
+                        }"
+                    )
+                },
+                description = {
+                    Text(
+                        latestVoidTag?.let { "Latest release: $it" }
+                            ?: (voidUpdateMsg ?: "Void rootfs")
+                    )
+                },
+                onClick = {}
+            )
+            if (voidInstalled) {
+                SettingsCard(
+                    title = { Text(if (checkingVoid) "Checking…" else "Check for updates") },
+                    onClick = {
+                        if (checkingVoid) return@SettingsCard
+                        checkingVoid = true
+                        voidUpdateMsg = null
+                        wolfiScope.launch(Dispatchers.IO) {
+                            try {
+                                val latest = WolfiRepo.fetchLatestFor("void")
+                                withContext(Dispatchers.Main) {
+                                    checkingVoid = false
+                                    latestVoidTag = latest.first
+                                    voidUpdateMsg =
+                                        if (voidVer.isBlank() || voidVer != latest.first) {
+                                            "Update available: ${latest.first}"
+                                        } else {
+                                            "Up to date (${latest.first})"
+                                        }
+                                }
+                            } catch (e: Exception) {
+                                withContext(Dispatchers.Main) {
+                                    checkingVoid = false
+                                    voidUpdateMsg = "Check failed: ${e.message}"
+                                }
+                            }
+                        }
+                    },
+                    isEnabled = !checkingVoid
+                )
+                if (latestVoidTag != null && (voidVer.isBlank() || voidVer != latestVoidTag)) {
+                    SettingsCard(
+                        title = { Text("Download update ($latestVoidTag)") },
+                        description = { Text("Replaces system files, keeps /root home. Restart Void sessions after.") },
+                        onClick = { showVoidDownloader = true }
+                    )
+                }
+            }
+        }
+
         GitHubSettingsSection(navController = navController, mainActivity = mainActivity)
 
         SftpSettingsSection(mainActivity = mainActivity)
@@ -374,12 +582,12 @@ fun Settings(
             }
             WorkingModeOption(
                 title = "Distro default",
-                description = "ash on Alpine, sh on Wolfi",
+                description = "ash on Alpine, sh on Wolfi/Debian/Void",
                 selected = selectedLoginShell.isBlank()
             ) { selectShell("") }
             WorkingModeOption(
                 title = "bash",
-                description = "/bin/bash (if missing: apk add bash)",
+                description = "/bin/bash (Alpine: apk add bash; Debian: apt install bash; Void: xbps-install bash)",
                 selected = selectedLoginShell == "/bin/bash"
             ) { selectShell("/bin/bash") }
             WorkingModeOption(

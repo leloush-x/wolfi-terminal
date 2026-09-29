@@ -227,6 +227,16 @@ class MainActivity : ComponentActivity() {
             pendingScript = null
             return
         }
+        if (custom == null && mode == WorkingMode.DEBIAN && !Rootfs.isDebianRootfsInstalled(this)) {
+            toast("Download Debian first: Settings > Default Working mode > Debian")
+            pendingScript = null
+            return
+        }
+        if (custom == null && mode == WorkingMode.VOID && !Rootfs.isVoidRootfsInstalled(this)) {
+            toast("Download Void first: Settings > Default Working mode > Void")
+            pendingScript = null
+            return
+        }
         if (custom == null && mode == WorkingMode.ALPINE && !Rootfs.isRootfsInstalled(this)) {
             toast("Set up Alpine first: Settings > Default Working mode > Alpine")
             pendingScript = null

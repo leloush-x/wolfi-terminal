@@ -46,6 +46,38 @@ fun Context.wolfiHomeDir(): File {
     }
 }
 
+fun Context.debianDir(): File {
+    return localDir().child("debian").also {
+        if (!it.exists()) {
+            it.mkdirs()
+        }
+    }
+}
+
+fun Context.debianHomeDir(): File {
+    return debianDir().child("root").also {
+        if (!it.exists()) {
+            it.mkdirs()
+        }
+    }
+}
+
+fun Context.voidDir(): File {
+    return localDir().child("void").also {
+        if (!it.exists()) {
+            it.mkdirs()
+        }
+    }
+}
+
+fun Context.voidHomeDir(): File {
+    return voidDir().child("root").also {
+        if (!it.exists()) {
+            it.mkdirs()
+        }
+    }
+}
+
 fun Context.localBinDir(): File {
     return localDir().child("bin").also {
         if (!it.exists()) {

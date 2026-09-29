@@ -70,6 +70,16 @@ fun RunScriptDialog(
                     selected = !selectedIsCustom && selectedMode == WorkingMode.WOLFI
                 ) { select(WorkingMode.WOLFI, null, false) }
                 ScriptSessionOption(
+                    title = "Debian",
+                    description = stringResource(strings.debian_desc),
+                    selected = !selectedIsCustom && selectedMode == WorkingMode.DEBIAN
+                ) { select(WorkingMode.DEBIAN, null, false) }
+                ScriptSessionOption(
+                    title = "Void",
+                    description = stringResource(strings.void_desc),
+                    selected = !selectedIsCustom && selectedMode == WorkingMode.VOID
+                ) { select(WorkingMode.VOID, null, false) }
+                ScriptSessionOption(
                     title = "Android",
                     description = stringResource(strings.android_desc),
                     selected = !selectedIsCustom && selectedMode == WorkingMode.ANDROID

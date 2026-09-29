@@ -45,14 +45,23 @@ fun SetupScreen(
     // so they skip the chooser and follow the original Alpine flow.
     val alpinePresent = remember { Rootfs.isRootfsInstalled(context) }
     val wolfiPresent = remember { Rootfs.isWolfiRootfsInstalled(context) }
-    val needsChoice = !alpinePresent && !wolfiPresent
+    val debianPresent = remember { Rootfs.isDebianRootfsInstalled(context) }
+    val voidPresent = remember { Rootfs.isVoidRootfsInstalled(context) }
+    val needsChoice = !alpinePresent && !wolfiPresent && !debianPresent && !voidPresent
     var distroChoice by remember {
         mutableIntStateOf(
-            if (Settings.working_Mode == WorkingMode.WOLFI) WorkingMode.WOLFI else WorkingMode.ALPINE
+            when (Settings.working_Mode) {
+                WorkingMode.WOLFI -> WorkingMode.WOLFI
+                WorkingMode.DEBIAN -> WorkingMode.DEBIAN
+                WorkingMode.VOID -> WorkingMode.VOID
+                else -> WorkingMode.ALPINE
+            }
         )
     }
     var choiceMade by remember { mutableStateOf(!needsChoice) }
     var wolfiDone by remember { mutableStateOf(wolfiPresent) }
+    var debianDone by remember { mutableStateOf(debianPresent) }
+    var voidDone by remember { mutableStateOf(voidPresent) }
 
     fun startAlpineInstall() {
         if (isSetupComplete) {
@@ -65,7 +74,13 @@ fun SetupScreen(
     LaunchedEffect(Unit) {
         if (Rootfs.execMode.value != null) {
             rootChecked = true
-            if (isSetupComplete || (wolfiPresent && Settings.working_Mode == WorkingMode.WOLFI)) {
+            val preselectedReady = when (Settings.working_Mode) {
+                WorkingMode.WOLFI -> wolfiPresent
+                WorkingMode.DEBIAN -> debianPresent
+                WorkingMode.VOID -> voidPresent
+                else -> isSetupComplete
+            }
+            if (isSetupComplete || preselectedReady) {
                 Rootfs.isInstalled.value = true
             } else if (!needsChoice) {
                 extractionStarted = true
@@ -159,8 +174,12 @@ fun SetupScreen(
         }
     }
 
-    val distroReady = (distroChoice == WorkingMode.WOLFI && wolfiDone) ||
-        (distroChoice != WorkingMode.WOLFI && isSetupComplete)
+    val distroReady = when (distroChoice) {
+        WorkingMode.WOLFI -> wolfiDone
+        WorkingMode.DEBIAN -> debianDone
+        WorkingMode.VOID -> voidDone
+        else -> isSetupComplete
+    }
     val ready = distroReady && Rootfs.execMode.value != null
 
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -191,16 +210,36 @@ fun SetupScreen(
                         onPickWolfi = {
                             distroChoice = WorkingMode.WOLFI
                             choiceMade = true
+                        },
+                        onPickDebian = {
+                            distroChoice = WorkingMode.DEBIAN
+                            choiceMade = true
+                        },
+                        onPickVoid = {
+                            distroChoice = WorkingMode.VOID
+                            choiceMade = true
                         }
                     )
                 }
-                distroChoice == WorkingMode.WOLFI && !wolfiDone -> {
+                (distroChoice == WorkingMode.WOLFI && !wolfiDone) ||
+                    (distroChoice == WorkingMode.DEBIAN && !debianDone) ||
+                    (distroChoice == WorkingMode.VOID && !voidDone) -> {
+                    val dlDistro = when (distroChoice) {
+                        WorkingMode.DEBIAN -> "debian"
+                        WorkingMode.VOID -> "void"
+                        else -> "wolfi"
+                    }
                     WolfiDownloadScreen(
+                        distro = dlDistro,
                         onCancel = { choiceMade = false },
                         onComplete = {
-                            wolfiDone = true
+                            when (distroChoice) {
+                                WorkingMode.WOLFI -> wolfiDone = true
+                                WorkingMode.DEBIAN -> debianDone = true
+                                WorkingMode.VOID -> voidDone = true
+                            }
                             Settings.default_is_custom = false
-                            Settings.working_Mode = WorkingMode.WOLFI
+                            Settings.working_Mode = distroChoice
                             Rootfs.isInstalled.value = true
                         }
                     )
@@ -222,7 +261,9 @@ fun SetupScreen(
 @Composable
 private fun DistroChooser(
     onPickAlpine: () -> Unit,
-    onPickWolfi: () -> Unit
+    onPickWolfi: () -> Unit,
+    onPickDebian: () -> Unit,
+    onPickVoid: () -> Unit
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -246,6 +287,16 @@ private fun DistroChooser(
                 title = { Text("Alpine") },
                 description = { Text(stringResource(strings.alpine_desc)) },
                 onClick = onPickAlpine
+            )
+            SettingsCard(
+                title = { Text("Debian") },
+                description = { Text(stringResource(strings.debian_desc)) },
+                onClick = onPickDebian
+            )
+            SettingsCard(
+                title = { Text("Void") },
+                description = { Text(stringResource(strings.void_desc)) },
+                onClick = onPickVoid
             )
         }
     }
