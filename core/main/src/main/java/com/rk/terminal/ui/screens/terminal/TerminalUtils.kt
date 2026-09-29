@@ -6,6 +6,7 @@ import android.graphics.Typeface
 import androidx.compose.runtime.mutableStateOf
 import com.rk.libcommons.child
 import com.rk.settings.Settings
+import com.rk.terminal.ui.screens.settings.WorkingMode
 
 object TerminalUtils {
     var darkText = mutableStateOf(Settings.blackTextColor)
@@ -34,9 +35,11 @@ object TerminalUtils {
         if (darkText.value) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White
 
     fun getNameOfWorkingMode(workingMode: Int?): String = when (workingMode) {
-        0 -> "alpine"
-        1 -> "android"
-        2 -> "wolfi"
+        WorkingMode.ALPINE -> "alpine"
+        WorkingMode.ANDROID -> "android"
+        WorkingMode.WOLFI -> "wolfi"
+        WorkingMode.DEBIAN -> "debian"
+        WorkingMode.VOID -> "void"
         else -> "unknown"
     }
 

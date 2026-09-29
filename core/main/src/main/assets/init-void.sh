@@ -20,20 +20,44 @@ fi
 
 if [ "$#" -eq 0 ]; then
     if [ -f /etc/profile ]; then
-        source /etc/profile
+        . /etc/profile
     fi
-    export PS1='\[\033[01;32m\]\u@revoid\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+    BRANDED_PS1='\[\033[01;32m\]\u@revoid\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
+    export PS1="$BRANDED_PS1"
     cd $HOME
     if [ -f /initrc ]; then
-        source /initrc
+        . /initrc
     fi
     if [ -f "$HOME/.profile" ]; then
-        source "$HOME/.profile"
+        . "$HOME/.profile"
     fi
+    # Re-assert after profile/initrc (they may override PS1).
+    export PS1="$BRANDED_PS1"
     : "${LOGIN_SHELL:=/bin/sh}"
     export SHELL="$LOGIN_SHELL"
     if [ -x "$LOGIN_SHELL" ]; then
-        exec "$LOGIN_SHELL"
+        case "$LOGIN_SHELL" in
+            *bash)
+                # Bash sources /etc/bash.bashrc + ~/.bashrc which overwrite
+                # inherited PS1, so launch via a wrapper rc that re-forces
+                # the branded prompt last.
+                RETERM_RC="/tmp/reterm-bashrc-$$"
+                {
+                    echo '# reterm branded prompt wrapper'
+                    echo '[ -f /etc/bash.bashrc ] && . /etc/bash.bashrc'
+                    echo '[ -f /etc/bash/bashrc ] && . /etc/bash/bashrc'
+                    echo '[ -f "$HOME/.bashrc" ] && . "$HOME/.bashrc"'
+                    echo "PS1='$BRANDED_PS1'"
+                    echo 'export PS1'
+                } > "$RETERM_RC" 2>/dev/null || true
+                exec "$LOGIN_SHELL" --rcfile "$RETERM_RC" -i
+                ;;
+            *)
+                # dash/sh do not expand bash \[ \] escapes, use simple prompt.
+                export PS1='root@revoid:/# '
+                exec "$LOGIN_SHELL"
+                ;;
+        esac
     else
         exec /bin/sh
     fi
