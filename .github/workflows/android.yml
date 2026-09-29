@@ -159,7 +159,7 @@ jobs:
 
             - Commit: `${{ env.COMMIT_HASH }}`
             - Built from: `main` (or manual trigger)
-            - Distros: Wolfi (on-demand download) + Alpine (bundled) + Android shell
+            - Distros: Wolfi, Debian, Void (on-demand download) + Alpine (bundled) + Android shell
 
             ### 📥 Download
 
