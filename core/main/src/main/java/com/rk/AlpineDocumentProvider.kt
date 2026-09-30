@@ -63,14 +63,14 @@ class AlpineDocumentProvider : DocumentsProvider() {
                 // Never return zero roots — Files app + system hate that.
                 // Fall back to a best-effort Alpine dir without touching disk.
                 val ctx = context
-                val fallback = if (ctx != null) {
+                val fallback: File = (if (ctx != null) {
                     runCatching { ctx.alpineHomeDir() }.getOrNull()
-                } else null
+                } else null)
                     ?: File("/data/data/${context?.packageName ?: "com.wolfi.terminal"}/files/local/alpine/root")
                 addRootRow(result, "alpine", "Alpine", fallback)
             } else {
                 for ((rootId, name, dir) in roots) {
-                    if (dir != null) addRootRow(result, rootId, name, dir)
+                    addRootRow(result, rootId, name, dir)
                 }
             }
         }.onFailure { e ->
