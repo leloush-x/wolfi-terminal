@@ -6,7 +6,8 @@
             android:authorities="${applicationId}.documents"
             android:exported="true"
             android:grantUriPermissions="true"
-            android:icon="@mipmap/ic_launcher">
+            android:icon="@mipmap/ic_launcher"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
             <intent-filter>
                 <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
             </intent-filter>

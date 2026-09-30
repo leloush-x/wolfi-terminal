@@ -32,42 +32,70 @@ class AlpineDocumentProvider : DocumentsProvider() {
     // single Alpine root which also used absolute paths).
 
     private fun allRoots(): List<Triple<String, String, File>> {
-        val ctx = context!!
-        // Ensure dirs exist so Files app never sees a dead root.
-        // Flexible: every distro always visible, always writable.
-        return listOf(
-            Triple("alpine", "Alpine", ctx.alpineHomeDir()),
-            Triple("wolfi", "Wolfi", ctx.wolfiHomeDir()),
-            Triple("debian", "Debian", ctx.debianHomeDir()),
-            Triple("void", "Void", ctx.voidHomeDir()),
-        )
+        val ctx = context ?: return emptyList()
+        // runCatching: a missing distro dir must never crash queryRoots / app start.
+        fun safeHome(block: Context.() -> File): File? = runCatching { ctx.block() }.getOrNull()
+        val list = mutableListOf<Triple<String, String, File>>()
+        safeHome({ alpineHomeDir() })?.let { list.add(Triple("alpine", "Alpine", it)) }
+        safeHome({ wolfiHomeDir() })?.let { list.add(Triple("wolfi", "Wolfi", it)) }
+        safeHome({ debianHomeDir() })?.let { list.add(Triple("debian", "Debian", it)) }
+        safeHome({ voidHomeDir() })?.let { list.add(Triple("void", "Void", it)) }
+        return list
     }
 
     private fun dirForRootId(rootId: String): File {
         allRoots().firstOrNull { it.first == rootId }?.let { return it.third }
         // Legacy fallback: old installs used the absolute path as rootId.
-        val f = File(rootId)
-        if (f.exists()) return f
-        return context!!.alpineHomeDir()
+        runCatching {
+            val f = File(rootId)
+            if (f.exists()) return f
+        }.getOrNull()
+        // Last resort: never throw here — provider must not die.
+        return runCatching { context!!.alpineHomeDir() }
+            .getOrElse { File("/data/data/${context?.packageName ?: "com.wolfi.terminal"}/files/local/alpine/root") }
     }
 
     override fun queryRoots(projection: Array<String>?): Cursor {
         val result = MatrixCursor(projection ?: DEFAULT_ROOT_PROJECTION)
-        for ((rootId, name, dir) in allRoots()) {
+        runCatching {
+            val roots = allRoots()
+            if (roots.isEmpty()) {
+                // Never return zero roots — Files app + system hate that.
+                // Fall back to a best-effort Alpine dir without touching disk.
+                val ctx = context
+                val fallback = if (ctx != null) {
+                    runCatching { ctx.alpineHomeDir() }.getOrNull()
+                } else null
+                    ?: File("/data/data/${context?.packageName ?: "com.wolfi.terminal"}/files/local/alpine/root")
+                addRootRow(result, "alpine", "Alpine", fallback)
+            } else {
+                for ((rootId, name, dir) in roots) {
+                    addRootRow(result, rootId, name, dir)
+                }
+            }
+        }.onFailure { e ->
+            Log.e("DocumentsProvider", "queryRoots failed", e)
+        }
+        return result
+    }
+
+    private fun addRootRow(result: MatrixCursor, rootId: String, name: String, dir: File) {
+        runCatching {
             val row = result.newRow()
             row.add(DocumentsContract.Root.COLUMN_ROOT_ID, rootId)
             row.add(DocumentsContract.Root.COLUMN_DOCUMENT_ID, getDocIdForFile(dir))
-            row.add(DocumentsContract.Root.COLUMN_SUMMARY, dir.absolutePath)
+            row.add(DocumentsContract.Root.COLUMN_SUMMARY, runCatching { dir.absolutePath }.getOrNull())
             row.add(
                 DocumentsContract.Root.COLUMN_FLAGS,
                 DocumentsContract.Root.FLAG_SUPPORTS_CREATE or DocumentsContract.Root.FLAG_SUPPORTS_SEARCH or DocumentsContract.Root.FLAG_SUPPORTS_IS_CHILD
             )
             row.add(DocumentsContract.Root.COLUMN_TITLE, "Wolfi Terminal — $name")
             row.add(DocumentsContract.Root.COLUMN_MIME_TYPES, ALL_MIME_TYPES)
-            row.add(DocumentsContract.Root.COLUMN_AVAILABLE_BYTES, dir.freeSpace)
+            row.add(DocumentsContract.Root.COLUMN_AVAILABLE_BYTES, runCatching { dir.freeSpace }.getOrDefault(0L))
             row.add(DocumentsContract.Root.COLUMN_ICON, R.mipmap.ic_launcher)
+        }.onFailure { e ->
+            Log.e("DocumentsProvider", "addRootRow failed for $rootId", e)
         }
-        return result
     }
 
     @Throws(FileNotFoundException::class)
