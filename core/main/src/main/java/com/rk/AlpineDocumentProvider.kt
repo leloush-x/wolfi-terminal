@@ -70,7 +70,7 @@ class AlpineDocumentProvider : DocumentsProvider() {
                 addRootRow(result, "alpine", "Alpine", fallback)
             } else {
                 for ((rootId, name, dir) in roots) {
-                    addRootRow(result, rootId, name, dir)
+                    if (dir != null) addRootRow(result, rootId, name, dir)
                 }
             }
         }.onFailure { e ->
