@@ -14,6 +14,9 @@ import android.provider.DocumentsProvider
 import android.util.Log
 import android.webkit.MimeTypeMap
 import com.rk.libcommons.alpineHomeDir
+import com.rk.libcommons.debianHomeDir
+import com.rk.libcommons.voidHomeDir
+import com.rk.libcommons.wolfiHomeDir
 import java.io.File
 import java.io.FileNotFoundException
 import java.io.IOException
@@ -24,24 +27,46 @@ import com.rk.terminal.R
 
 class AlpineDocumentProvider : DocumentsProvider() {
 
-    private val baseDir: File get() = context!!.alpineHomeDir()
+    // Multi-root SAF: one root per distro home. DocIds stay absolute paths
+    // on purpose (flexible, writable, backward compatible with the old
+    // single Alpine root which also used absolute paths).
+
+    private fun allRoots(): List<Triple<String, String, File>> {
+        val ctx = context!!
+        // Ensure dirs exist so Files app never sees a dead root.
+        // Flexible: every distro always visible, always writable.
+        return listOf(
+            Triple("alpine", "Alpine", ctx.alpineHomeDir()),
+            Triple("wolfi", "Wolfi", ctx.wolfiHomeDir()),
+            Triple("debian", "Debian", ctx.debianHomeDir()),
+            Triple("void", "Void", ctx.voidHomeDir()),
+        )
+    }
+
+    private fun dirForRootId(rootId: String): File {
+        allRoots().firstOrNull { it.first == rootId }?.let { return it.third }
+        // Legacy fallback: old installs used the absolute path as rootId.
+        val f = File(rootId)
+        if (f.exists()) return f
+        return context!!.alpineHomeDir()
+    }
 
     override fun queryRoots(projection: Array<String>?): Cursor {
         val result = MatrixCursor(projection ?: DEFAULT_ROOT_PROJECTION)
-        val applicationName = "Wolfi Terminal"
-
-        val row = result.newRow()
-        row.add(DocumentsContract.Root.COLUMN_ROOT_ID, getDocIdForFile(baseDir))
-        row.add(DocumentsContract.Root.COLUMN_DOCUMENT_ID, getDocIdForFile(baseDir))
-        row.add(DocumentsContract.Root.COLUMN_SUMMARY, null)
-        row.add(
-            DocumentsContract.Root.COLUMN_FLAGS,
-            DocumentsContract.Root.FLAG_SUPPORTS_CREATE or DocumentsContract.Root.FLAG_SUPPORTS_SEARCH or DocumentsContract.Root.FLAG_SUPPORTS_IS_CHILD
-        )
-        row.add(DocumentsContract.Root.COLUMN_TITLE, applicationName)
-        row.add(DocumentsContract.Root.COLUMN_MIME_TYPES, ALL_MIME_TYPES)
-        row.add(DocumentsContract.Root.COLUMN_AVAILABLE_BYTES, baseDir.freeSpace)
-        row.add(DocumentsContract.Root.COLUMN_ICON, R.mipmap.ic_launcher)
+        for ((rootId, name, dir) in allRoots()) {
+            val row = result.newRow()
+            row.add(DocumentsContract.Root.COLUMN_ROOT_ID, rootId)
+            row.add(DocumentsContract.Root.COLUMN_DOCUMENT_ID, getDocIdForFile(dir))
+            row.add(DocumentsContract.Root.COLUMN_SUMMARY, dir.absolutePath)
+            row.add(
+                DocumentsContract.Root.COLUMN_FLAGS,
+                DocumentsContract.Root.FLAG_SUPPORTS_CREATE or DocumentsContract.Root.FLAG_SUPPORTS_SEARCH or DocumentsContract.Root.FLAG_SUPPORTS_IS_CHILD
+            )
+            row.add(DocumentsContract.Root.COLUMN_TITLE, "Wolfi Terminal — $name")
+            row.add(DocumentsContract.Root.COLUMN_MIME_TYPES, ALL_MIME_TYPES)
+            row.add(DocumentsContract.Root.COLUMN_AVAILABLE_BYTES, dir.freeSpace)
+            row.add(DocumentsContract.Root.COLUMN_ICON, R.mipmap.ic_launcher)
+        }
         return result
     }
 
@@ -67,6 +92,16 @@ class AlpineDocumentProvider : DocumentsProvider() {
             }
         } else {
             Log.e("DocumentsProvider", "Unable to list files in $parentDocumentId")
+        }
+        // Live refresh: Files app re-queries when we notifyChange this URI.
+        runCatching {
+            val ctx = context
+            if (ctx != null) {
+                result.setNotificationUri(
+                    ctx.contentResolver,
+                    DocumentsContract.buildChildDocumentsUri(authority(), parentDocumentId)
+                )
+            }
         }
         return result
     }
@@ -120,15 +155,18 @@ class AlpineDocumentProvider : DocumentsProvider() {
         } catch (e: IOException) {
             throw FileNotFoundException("Failed to create document with id " + newFile.absolutePath)
         }
+        notifyChanged(parentDocumentId, newFile)
         return getDocIdForFile(newFile)
     }
 
     @Throws(FileNotFoundException::class)
     override fun deleteDocument(documentId: String) {
         val file = getFileForDocId(documentId)
-        if (!file.delete()) {
+        val ok = if (file.isDirectory) file.deleteRecursively() else file.delete()
+        if (!ok && file.exists()) {
             throw FileNotFoundException("Failed to delete document with id $documentId")
         }
+        notifyChanged(documentId)
     }
 
     @Throws(FileNotFoundException::class)
@@ -144,33 +182,153 @@ class AlpineDocumentProvider : DocumentsProvider() {
         projection: Array<String>?
     ): Cursor {
         val result = MatrixCursor(projection ?: DEFAULT_DOCUMENT_PROJECTION)
-        val parent = getFileForDocId(rootId)
+        // rootId is now "alpine"/"wolfi"/"debian"/"void" — resolve to dir.
+        val parent = try {
+            dirForRootId(rootId)
+        } catch (e: FileNotFoundException) {
+            try { getFileForDocId(rootId) } catch (e2: FileNotFoundException) { return result }
+        }
         val pending = LinkedList<File>()
         pending.add(parent)
 
-        val MAX_SEARCH_RESULTS = 50
-        while (!pending.isEmpty() && result.count < MAX_SEARCH_RESULTS) {
+        val maxResults = 50
+        val q = query.lowercase(Locale.getDefault())
+        while (!pending.isEmpty() && result.count < maxResults) {
             val file = pending.removeFirst()
-            val isInsideHome: Boolean = try {
-                file.canonicalPath.startsWith(baseDir.canonicalPath)
-            } catch (e: IOException) {
-                true
+            // Flexible: search everything under this root, no containment gate.
+            // Directories that match are listed too (browsable), plus recursion.
+            if (file.name.lowercase(Locale.getDefault()).contains(q)) {
+                includeFile(result, null, file)
+                if (result.count >= maxResults) break
             }
-            if (isInsideHome) {
-                if (file.isDirectory) {
-                    file.listFiles()?.let { Collections.addAll(pending, *it) }
-                } else {
-                    if (file.name.lowercase(Locale.getDefault()).contains(query)) {
-                        includeFile(result, null, file)
-                    }
-                }
+            if (file.isDirectory) {
+                file.listFiles()?.let { Collections.addAll(pending, *it) }
             }
         }
         return result
     }
 
     override fun isChildDocument(parentDocumentId: String, documentId: String): Boolean {
-        return documentId.startsWith(parentDocumentId)
+        // Flexible: pure prefix with separator ("/a/b" is parent of "/a/b/c",
+        // but NOT of "/a/bc"). No canonical containment gate per request.
+        if (documentId == parentDocumentId) return true
+        val prefix = parentDocumentId.trimEnd('/') + "/"
+        return documentId.startsWith(prefix)
+    }
+
+    @Throws(FileNotFoundException::class)
+    override fun renameDocument(documentId: String, displayName: String): String {
+        val file = getFileForDocId(documentId)
+        val parent = file.parentFile ?: throw FileNotFoundException("No parent for $documentId")
+        val target = File(parent, displayName)
+        if (target.exists()) throw FileNotFoundException("Target exists: ${target.absolutePath}")
+        if (!file.renameTo(target)) {
+            // Flexible fallback: copy + delete (covers cross-mount renames).
+            if (file.isDirectory) {
+                file.copyRecursively(target, overwrite = false)
+                file.deleteRecursively()
+            } else {
+                file.copyTo(target, overwrite = false)
+                file.delete()
+            }
+            if (!target.exists()) throw FileNotFoundException("Failed to rename $documentId")
+        }
+        notifyChanged(documentId, target)
+        return getDocIdForFile(target)
+    }
+
+    @Throws(FileNotFoundException::class)
+    override fun copyDocument(sourceDocumentId: String, targetParentDocumentId: String): String {
+        val src = getFileForDocId(sourceDocumentId)
+        val parent = getFileForDocId(targetParentDocumentId)
+        if (!parent.isDirectory) throw FileNotFoundException("Target parent is not a dir")
+        var dest = File(parent, src.name)
+        var n = 2
+        while (dest.exists()) {
+            dest = File(parent, "${src.name} ($n)")
+            n++
+        }
+        if (src.isDirectory) {
+            src.copyRecursively(dest, overwrite = false)
+        } else {
+            src.copyTo(dest, overwrite = false)
+        }
+        notifyChanged(targetParentDocumentId, dest)
+        return getDocIdForFile(dest)
+    }
+
+    @Throws(FileNotFoundException::class)
+    override fun moveDocument(
+        sourceDocumentId: String,
+        sourceParentDocumentId: String,
+        targetParentDocumentId: String
+    ): String {
+        val src = getFileForDocId(sourceDocumentId)
+        val parent = getFileForDocId(targetParentDocumentId)
+        if (!parent.isDirectory) throw FileNotFoundException("Target parent is not a dir")
+        var dest = File(parent, src.name)
+        var n = 2
+        while (dest.exists()) {
+            dest = File(parent, "${src.name} ($n)")
+            n++
+        }
+        // Try fast rename first, fall back to copy+delete.
+        val renamed = try { src.renameTo(dest) } catch (e: Exception) { false }
+        if (!renamed && !dest.exists()) {
+            if (src.isDirectory) {
+                src.copyRecursively(dest, overwrite = false)
+                src.deleteRecursively()
+            } else {
+                src.copyTo(dest, overwrite = false)
+                src.delete()
+            }
+        }
+        if (!dest.exists()) throw FileNotFoundException("Failed to move $sourceDocumentId")
+        notifyChanged(sourceDocumentId)
+        notifyChanged(targetParentDocumentId, dest)
+        return getDocIdForFile(dest)
+    }
+
+    private fun authority(): String {
+        val ctx = context
+        return if (ctx != null) "${ctx.packageName}.documents" else "com.wolfi.terminal.documents"
+    }
+
+    private fun notifyChanged(vararg filesOrIds: Any) {
+        val ctx = context ?: return
+        val resolver = ctx.contentResolver ?: return
+        val auth = authority()
+        // Notify roots (free-space/titles) once.
+        runCatching {
+            resolver.notifyChange(
+                DocumentsContract.buildRootsUri(auth),
+                null
+            )
+        }
+        for (item in filesOrIds) {
+            val f: File? = when (item) {
+                is File -> item
+                is String -> runCatching { File(item) }.getOrNull()
+                else -> null
+            }
+            f ?: continue
+            runCatching {
+                resolver.notifyChange(
+                    DocumentsContract.buildDocumentUri(
+                        auth, f.absolutePath
+                    ), null
+                )
+            }
+            runCatching {
+                f.parentFile?.let { p ->
+                    resolver.notifyChange(
+                        DocumentsContract.buildChildDocumentsUri(
+                            auth, p.absolutePath
+                        ), null
+                    )
+                }
+            }
+        }
     }
 
     @Throws(FileNotFoundException::class)
@@ -184,7 +342,12 @@ class AlpineDocumentProvider : DocumentsProvider() {
         } else if (finalFile.canWrite()) {
             flags = flags or DocumentsContract.Document.FLAG_SUPPORTS_WRITE
         }
-        if (finalFile.parentFile?.canWrite() == true) flags = flags or DocumentsContract.Document.FLAG_SUPPORTS_DELETE
+        if (finalFile.parentFile?.canWrite() == true) {
+            flags = flags or DocumentsContract.Document.FLAG_SUPPORTS_DELETE or
+                DocumentsContract.Document.FLAG_SUPPORTS_RENAME or
+                DocumentsContract.Document.FLAG_SUPPORTS_COPY or
+                DocumentsContract.Document.FLAG_SUPPORTS_MOVE
+        }
 
         val displayName = finalFile.name
         val mimeType = getMimeType(finalFile)
