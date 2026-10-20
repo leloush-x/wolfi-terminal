@@ -113,6 +113,8 @@ class TerminalBackEnd(
     override fun shouldBackButtonBeMappedToEscape(): Boolean = false
     override fun shouldEnforceCharBasedInput(): Boolean =
         com.rk.settings.SettingsRepository.getKeyboardInputMode() == 1 || Settings.input_mode != 1
+
+    override fun getInputMode(): Int = Settings.input_mode
     override fun shouldUseCtrlSpaceWorkaround(): Boolean = true
     override fun isTerminalViewSelected(): Boolean = true
     override fun copyModeChanged(copyMode: Boolean) {}
