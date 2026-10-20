@@ -95,6 +95,12 @@ fun Settings(
     val context = LocalContext.current
     var selectedWorkingMode by remember { mutableIntStateOf(Settings.working_Mode) }
     var selectedInputMode by remember { mutableIntStateOf(Settings.input_mode) }
+    var voiceEnabled by remember { mutableStateOf(com.rk.settings.SettingsRepository.isVoiceEnabled()) }
+    var voiceKeyboardMode by remember { mutableIntStateOf(com.rk.settings.SettingsRepository.getKeyboardInputMode()) }
+    var voicePreview by remember { mutableStateOf(com.rk.settings.SettingsRepository.isVoicePreview()) }
+    var voiceTrailingSpace by remember { mutableStateOf(com.rk.settings.SettingsRepository.isVoiceTrailingSpace()) }
+    var voiceMicVisible by remember { mutableStateOf(com.rk.settings.SettingsRepository.isVoiceMicButtonVisible()) }
+    var voiceLanguage by remember { mutableStateOf(com.rk.settings.SettingsRepository.getVoiceLanguage()) }
     var selectedExecMode by remember { mutableStateOf(Rootfs.execMode.value) }
     var customSessions by remember { mutableStateOf(CustomSessions.getAll()) }
     var showAddCustomSession by remember { mutableStateOf(false) }
@@ -614,6 +620,42 @@ fun Settings(
             InputModeOption(stringResource(strings.input_mode_visible_password), stringResource(strings.input_mode_visible_password_desc), InputMode.VISIBLE_PASSWORD, selectedInputMode) {
                 selectedInputMode = it
                 Settings.input_mode = it
+            }
+        }
+
+        PreferenceGroup(heading = "Voice input") {
+            SettingsToggle(label = "Enable voice input", description = "Off by default. Speak to type into the running program.", showSwitch = true, default = voiceEnabled, sideEffect = {
+                voiceEnabled = it
+                com.rk.settings.SettingsRepository.setVoiceEnabled(it)
+            })
+            if (voiceEnabled) {
+                PreferenceTemplate(title = { Text("Keyboard input mode") }) {}
+                InputModeOption("Classic", "Current input path", 0, voiceKeyboardMode) {
+                    voiceKeyboardMode = it
+                    com.rk.settings.SettingsRepository.setKeyboardInputMode(it)
+                }
+                InputModeOption("Text/Voice-friendly", "TYPE_CLASS_TEXT, no suggestions, voice typing enabled", 1, voiceKeyboardMode) {
+                    voiceKeyboardMode = it
+                    com.rk.settings.SettingsRepository.setKeyboardInputMode(it)
+                }
+                SettingsToggle(label = "Preview before insert", description = "Show Insert/Cancel chip", showSwitch = true, default = voicePreview, sideEffect = {
+                    voicePreview = it
+                    com.rk.settings.SettingsRepository.setVoicePreview(it)
+                })
+                SettingsToggle(label = "Trailing space", description = "Append a space after dictated text", showSwitch = true, default = voiceTrailingSpace, sideEffect = {
+                    voiceTrailingSpace = it
+                    com.rk.settings.SettingsRepository.setVoiceTrailingSpace(it)
+                })
+                SettingsToggle(label = "Show mic button", description = "Mic button in extra keys row", showSwitch = true, default = voiceMicVisible, sideEffect = {
+                    voiceMicVisible = it
+                    com.rk.settings.SettingsRepository.setVoiceMicButtonVisible(it)
+                })
+                PreferenceTemplate(title = { Text("Language") }) {
+                    OutlinedTextField(value = voiceLanguage, onValueChange = {
+                        voiceLanguage = it
+                        com.rk.settings.SettingsRepository.setVoiceLanguage(it)
+                    }, singleLine = true)
+                }
             }
         }
 
