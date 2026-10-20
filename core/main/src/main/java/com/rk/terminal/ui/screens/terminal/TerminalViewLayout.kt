@@ -18,6 +18,7 @@ import com.rk.libcommons.child
 import com.rk.libcommons.dpToPx
 import com.rk.libcommons.localDir
 import com.rk.settings.Settings
+import com.rk.settings.SettingsRepository
 import com.rk.terminal.service.SessionService
 import com.rk.terminal.ui.activities.terminal.MainActivity
 import com.rk.terminal.ui.screens.settings.SftpManager
@@ -34,12 +35,13 @@ fun TerminalViewLayout(
     sessionBinder: SessionService.SessionBinder,
     modifier: Modifier = Modifier
 ) {
+    val fontSizeSp by SettingsRepository.terminalFontSizeSp.collectAsState()
     Column(modifier = modifier) {
         AndroidView(
             factory = { ctx ->
                 TerminalView(ctx, null).apply {
                     viewModel.setTerminalView(this)
-                    setTextSize(dpToPx(Settings.terminal_font_size.toFloat(), ctx))
+                    setTextSize(dpToPx(SettingsRepository.getTerminalFontSizeSp(), ctx))
                     setBackgroundColor(android.graphics.Color.TRANSPARENT)
 
                     val client = TerminalBackEnd(this, mainActivity)
@@ -109,6 +111,7 @@ fun TerminalViewLayout(
             modifier = Modifier.fillMaxWidth().weight(1f),
             update = { view ->
                 view.onScreenUpdated()
+                view.setTextSize(dpToPx(fontSizeSp, view.context))
                 val color = TerminalUtils.getViewColor()
                 val bgColor = TerminalUtils.getBackgroundColor()
                 view.mEmulator?.mColors?.mCurrentColors?.apply {
