@@ -34,6 +34,7 @@ class App : Application() {
         super.onCreate()
         application = this
         Res.application = this
+        com.rk.settings.SettingsRepository.init(this)
         TerminalUtils.init(this)
         SheveryManager.init(this)
 
