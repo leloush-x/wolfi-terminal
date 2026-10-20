@@ -38,6 +38,7 @@ import com.rk.terminal.ui.screens.downloader.WolfiDownloadScreen
 import com.rk.terminal.ui.screens.settings.SettingsCard
 import com.rk.terminal.ui.screens.settings.WorkingMode
 import com.rk.terminal.ui.screens.terminal.virtualkeys.VirtualKeysListener
+import com.rk.terminal.voice.VoiceMicControl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -241,6 +242,7 @@ fun TerminalScreen(
                             .padding(top = topPadding)
                             .fillMaxSize()
                     )
+                    VoiceMicControl(terminalViewModel = terminalViewModel, scope = scope)
                 }
             }
         }
