@@ -5,6 +5,17 @@ mkdir -p $WOLFI_DIR
 if [ -z "$(ls -A "$WOLFI_DIR" | grep -vE '^(root|tmp)$')" ]; then
     tar -xf "$PREFIX/files/wolfi.tar.gz" -C "$WOLFI_DIR"
 fi
+# Restore user-installed packages preserved across rootfs updates.
+if [ -d "$WOLFI_DIR/root/.preserved-usrlocal" ]; then
+    mkdir -p "$WOLFI_DIR/usr/local"
+    cp -a "$WOLFI_DIR/root/.preserved-usrlocal/." "$WOLFI_DIR/usr/local/" 2>/dev/null
+    rm -rf "$WOLFI_DIR/root/.preserved-usrlocal"
+fi
+if [ -d "$WOLFI_DIR/root/.preserved-opt" ]; then
+    mkdir -p "$WOLFI_DIR/opt"
+    cp -a "$WOLFI_DIR/root/.preserved-opt/." "$WOLFI_DIR/opt/" 2>/dev/null
+    rm -rf "$WOLFI_DIR/root/.preserved-opt"
+fi
 
 if [ -f "$BIN/rm" ]; then
     rm -f "$WOLFI_DIR/bin/rm"
