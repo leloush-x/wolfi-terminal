@@ -73,13 +73,28 @@ object Rootfs {
     fun debianArchive(context: Context): File = context.filesDir.child("debian.tar.gz")
     fun voidArchive(context: Context): File = context.filesDir.child("void.tar.gz")
 
+    private fun backupPreserved(src: File, dst: File) {
+        runCatching {
+            if (!src.exists()) return
+            if (dst.exists()) dst.deleteRecursively()
+            dst.parentFile?.mkdirs()
+            src.copyRecursively(dst, overwrite = true)
+        }
+    }
+
     /**
      * Wipes the extracted Wolfi system (keeps /root home and tmp) plus cached
      * init scripts, so the next session re-extracts fresh from wolfi.tar.gz.
+     * User-installed packages under usr/local and opt are backed up into
+     * /root/.preserved-* so the init script can restore them after extraction.
      * Call on a background thread after downloading a rootfs update.
      */
     fun clearWolfiSystem(context: Context) {
-        context.wolfiDir().listFiles()?.forEach {
+        val dir = context.wolfiDir()
+        val root = dir.child("root")
+        backupPreserved(dir.child("usr").child("local"), root.child(".preserved-usrlocal"))
+        backupPreserved(dir.child("opt"), root.child(".preserved-opt"))
+        dir.listFiles()?.forEach {
             if (it.name != "root" && it.name != "tmp") it.deleteRecursively()
         }
         arrayOf("init-wolfi-host", "init-wolfi-host-chroot", "init-wolfi").forEach {
@@ -88,7 +103,11 @@ object Rootfs {
     }
 
     fun clearDebianSystem(context: Context) {
-        context.debianDir().listFiles()?.forEach {
+        val dir = context.debianDir()
+        val root = dir.child("root")
+        backupPreserved(dir.child("usr").child("local"), root.child(".preserved-usrlocal"))
+        backupPreserved(dir.child("opt"), root.child(".preserved-opt"))
+        dir.listFiles()?.forEach {
             if (it.name != "root" && it.name != "tmp") it.deleteRecursively()
         }
         arrayOf("init-debian-host", "init-debian-host-chroot", "init-debian").forEach {
@@ -97,7 +116,11 @@ object Rootfs {
     }
 
     fun clearVoidSystem(context: Context) {
-        context.voidDir().listFiles()?.forEach {
+        val dir = context.voidDir()
+        val root = dir.child("root")
+        backupPreserved(dir.child("usr").child("local"), root.child(".preserved-usrlocal"))
+        backupPreserved(dir.child("opt"), root.child(".preserved-opt"))
+        dir.listFiles()?.forEach {
             if (it.name != "root" && it.name != "tmp") it.deleteRecursively()
         }
         arrayOf("init-void-host", "init-void-host-chroot", "init-void").forEach {

@@ -5,6 +5,17 @@ mkdir -p $VOID_DIR
 if [ -z "$(ls -A "$VOID_DIR" | grep -vE '^(root|tmp)$')" ]; then
     tar -xf "$PREFIX/files/void.tar.gz" -C "$VOID_DIR"
 fi
+# Restore user-installed packages preserved across rootfs updates.
+if [ -d "$VOID_DIR/root/.preserved-usrlocal" ]; then
+    mkdir -p "$VOID_DIR/usr/local"
+    cp -a "$VOID_DIR/root/.preserved-usrlocal/." "$VOID_DIR/usr/local/" 2>/dev/null
+    rm -rf "$VOID_DIR/root/.preserved-usrlocal"
+fi
+if [ -d "$VOID_DIR/root/.preserved-opt" ]; then
+    mkdir -p "$VOID_DIR/opt"
+    cp -a "$VOID_DIR/root/.preserved-opt/." "$VOID_DIR/opt/" 2>/dev/null
+    rm -rf "$VOID_DIR/root/.preserved-opt"
+fi
 
 if [ -f "$BIN/rm" ]; then
     rm -f "$VOID_DIR/bin/rm"

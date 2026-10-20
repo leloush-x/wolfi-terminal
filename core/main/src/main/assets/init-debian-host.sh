@@ -5,6 +5,17 @@ mkdir -p $DEBIAN_DIR
 if [ -z "$(ls -A "$DEBIAN_DIR" | grep -vE '^(root|tmp)$')" ]; then
     tar -xf "$PREFIX/files/debian.tar.gz" -C "$DEBIAN_DIR"
 fi
+# Restore user-installed packages preserved across rootfs updates.
+if [ -d "$DEBIAN_DIR/root/.preserved-usrlocal" ]; then
+    mkdir -p "$DEBIAN_DIR/usr/local"
+    cp -a "$DEBIAN_DIR/root/.preserved-usrlocal/." "$DEBIAN_DIR/usr/local/" 2>/dev/null
+    rm -rf "$DEBIAN_DIR/root/.preserved-usrlocal"
+fi
+if [ -d "$DEBIAN_DIR/root/.preserved-opt" ]; then
+    mkdir -p "$DEBIAN_DIR/opt"
+    cp -a "$DEBIAN_DIR/root/.preserved-opt/." "$DEBIAN_DIR/opt/" 2>/dev/null
+    rm -rf "$DEBIAN_DIR/root/.preserved-opt"
+fi
 
 if [ -f "$BIN/rm" ]; then
     rm -f "$DEBIAN_DIR/bin/rm"
