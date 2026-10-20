@@ -32,6 +32,7 @@ import com.rk.components.compose.preferences.switch.PreferenceSwitch
 import com.rk.libcommons.*
 import com.rk.resources.strings
 import com.rk.settings.Settings
+import com.rk.settings.SettingsRepository
 import com.rk.terminal.ui.activities.terminal.MainViewModel
 import com.rk.terminal.ui.components.AccentColorPicker
 import com.rk.terminal.ui.components.SettingsToggle
@@ -46,8 +47,8 @@ import java.io.File
 import java.math.RoundingMode
 import java.text.DecimalFormat
 
-private const val MIN_TEXT_SIZE = 10f
-private const val MAX_TEXT_SIZE = 20f
+private const val MIN_TEXT_SIZE = 6f
+private const val MAX_TEXT_SIZE = 40f
 
 @Composable
 fun Customization(
@@ -63,11 +64,13 @@ fun Customization(
         label = stringResource(strings.customizations),
         onBack = { navController.popBackStack() }
     ) {
-        var sliderPosition by remember { mutableFloatStateOf(Settings.terminal_font_size.toFloat()) }
-        
+        val fontSizeFlow by SettingsRepository.terminalFontSizeSp.collectAsState()
+        var sliderPosition by remember { mutableFloatStateOf(SettingsRepository.getTerminalFontSizeSp()) }
+        LaunchedEffect(fontSizeFlow) { sliderPosition = fontSizeFlow }
+
         PreferenceGroup {
             PreferenceTemplate(title = { Text(stringResource(strings.text_size)) }) {
-                Text(sliderPosition.toInt().toString())
+                Text(sliderPosition.toInt().toString() + " sp")
             }
             PreferenceTemplate(title = {}) {
                 Slider(
@@ -75,11 +78,36 @@ fun Customization(
                     onValueChange = {
                         sliderPosition = it
                         Settings.terminal_font_size = it.toInt()
+                        SettingsRepository.setTerminalFontSizeSp(it)
                         terminalViewModel.terminalView?.setTextSize(dpToPx(it, context))
                     },
                     steps = (MAX_TEXT_SIZE - MIN_TEXT_SIZE).toInt() - 1,
                     valueRange = MIN_TEXT_SIZE..MAX_TEXT_SIZE,
                 )
+            }
+            PreferenceTemplate(title = {}) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = {
+                        val v = (sliderPosition - 1f).coerceIn(MIN_TEXT_SIZE, MAX_TEXT_SIZE)
+                        sliderPosition = v
+                        Settings.terminal_font_size = v.toInt()
+                        SettingsRepository.setTerminalFontSizeSp(v)
+                        terminalViewModel.terminalView?.setTextSize(dpToPx(v, context))
+                    }) { Text("-") }
+                    OutlinedButton(onClick = {
+                        val v = (sliderPosition + 1f).coerceIn(MIN_TEXT_SIZE, MAX_TEXT_SIZE)
+                        sliderPosition = v
+                        Settings.terminal_font_size = v.toInt()
+                        SettingsRepository.setTerminalFontSizeSp(v)
+                        terminalViewModel.terminalView?.setTextSize(dpToPx(v, context))
+                    }) { Text("+") }
+                    OutlinedButton(onClick = {
+                        sliderPosition = 13f
+                        Settings.terminal_font_size = 13
+                        SettingsRepository.setTerminalFontSizeSp(13f)
+                        terminalViewModel.terminalView?.setTextSize(dpToPx(13f, context))
+                    }) { Text("Reset") }
+                }
             }
         }
 

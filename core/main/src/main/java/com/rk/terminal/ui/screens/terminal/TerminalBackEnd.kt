@@ -94,8 +94,10 @@ class TerminalBackEnd(
     }
 
     override fun onScale(scale: Float): Float {
-        val fontScale = scale.coerceIn(11f, 45f)
+        val fontScale = scale.coerceIn(6f, 40f)
         terminal.setTextSize(fontScale.toInt())
+        Settings.terminal_font_size = fontScale.toInt()
+        com.rk.settings.SettingsRepository.setTerminalFontSizeSp(fontScale)
         return fontScale
     }
 
