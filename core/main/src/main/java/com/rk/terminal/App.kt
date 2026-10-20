@@ -10,9 +10,9 @@ import com.rk.resources.Res
 import com.rk.terminal.root.SheveryManager
 import com.rk.terminal.ui.screens.terminal.TerminalUtils
 import com.rk.update.UpdateManager
-import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.Executors
@@ -29,7 +29,6 @@ class App : Application() {
         }
     }
 
-    @OptIn(DelicateCoroutinesApi::class)
     override fun onCreate() {
         super.onCreate()
         application = this
@@ -38,7 +37,7 @@ class App : Application() {
         TerminalUtils.init(this)
         SheveryManager.init(this)
 
-        GlobalScope.launch(Dispatchers.IO) {
+        CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             getTempDir(this@App).apply {
                 if (exists() && listFiles().isNullOrEmpty().not()) {
                     deleteRecursively()
