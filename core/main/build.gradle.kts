@@ -93,7 +93,8 @@ dependencies {
     // Shevery / Shizuku manager connection (same client API for both managers)
     implementation(libs.shizuku.api)
     implementation(libs.shizuku.provider)
-    implementation("com.github.termux.termux-app:terminal-view:v0.118.3")
+    // TerminalView is vendored locally (see src/main/java/com/termux/view) so
+    // onCreateInputConnection can be customized for IME/voice input.
     implementation("com.github.termux.termux-app:terminal-emulator:v0.118.3")
 
     testImplementation(libs.junit)
