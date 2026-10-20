@@ -106,7 +106,8 @@ If you file a root bug, say which manager you use, what uid it reports, and whic
 ## Customization and settings tour
 
 - **Appearance:** follow-system / light / dark, AMOLED, Monet on Android 12+, accent palette picker.
-- **Terminal:** font size, custom `.ttf`, background image + blur, extra keys editor, shortcut remapping.
+- **Terminal:** font size (6-40 sp, live, pinch-to-zoom), custom `.ttf`, background image + blur, extra keys editor, shortcut remapping.
+- **Voice input:** optional, off by default. Keyboard mic or in-app mic; text is inserted at the cursor without submitting. Settings > Voice input.
 - **Sessions:** default distro or default custom session, custom session manager, login shell path.
 - **Distro updates:** per-distro version row with “check for update”, download progress, and restart reminder.
 - **Storage:** full-storage permission prompt (needed for `/sdcard` access) with an option to dismiss it if you know what you are doing.
