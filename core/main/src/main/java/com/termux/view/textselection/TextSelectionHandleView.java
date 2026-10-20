@@ -12,7 +12,7 @@ import android.view.ViewParent;
 import android.view.WindowManager;
 import android.widget.PopupWindow;
 
-import com.termux.view.R;
+import com.rk.terminal.R;
 import com.termux.view.TerminalView;
 
 @SuppressLint("ViewConstructor")
