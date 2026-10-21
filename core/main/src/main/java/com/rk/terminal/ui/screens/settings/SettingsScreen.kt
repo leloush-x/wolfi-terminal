@@ -482,7 +482,9 @@ fun SettingsScreen(
 private fun DistroUpdateSection(distro: Distro, onDownload: (Distro) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var installedVersion by remember { mutableStateOf(Settings.getRootfsVersion(distro)) }
+    // Read fresh on every composition so a freshly installed rootfs shows
+    // its new version without a restart.
+    val installedVersion = Settings.getRootfsVersion(distro)
     var latestTag by remember { mutableStateOf<String?>(null) }
     var checking by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
