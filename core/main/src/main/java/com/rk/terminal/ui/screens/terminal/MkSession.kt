@@ -20,6 +20,8 @@ import com.rk.terminal.BuildConfig
 import com.rk.terminal.root.SheveryManager
 import com.rk.terminal.root.isSuVisible
 import com.rk.terminal.core.WorkingMode
+import com.rk.terminal.rootfs.ExecMode
+import com.rk.terminal.rootfs.Rootfs
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient

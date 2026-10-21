@@ -28,6 +28,7 @@ object RootfsExtractor {
     private const val BLOCK = 512
     private const val GZIP_BUFFER = 64 * 1024
     private const val MAX_HEADER_PAYLOAD = 1L shl 20
+    private const val USTAR_MAGIC = "ustar"
 
     private const val TYPE_REGULAR = '0'
     private const val TYPE_HARDLINK = '1'
@@ -69,6 +70,10 @@ object RootfsExtractor {
 
         while (readFully(input, header)) {
             if (isZeroBlock(header)) break
+            // A tar header carries the "ustar" magic. Anything else means the
+            // archive ended early or has a junk tail — the published rootfs
+            // archives carry one that GNU tar itself rejects.
+            if (!hasUstarMagic(header)) break
 
             val type = header[156].toInt().toChar()
             val size = readOctal(header, 124, 12)
@@ -76,20 +81,24 @@ object RootfsExtractor {
             when (type) {
                 TYPE_LONG_NAME -> {
                     longName = readPayloadString(input, size)
+                    skipPadding(input, size)
                     continue
                 }
                 TYPE_LONG_LINK -> {
                     longLink = readPayloadString(input, size)
+                    skipPadding(input, size)
                     continue
                 }
                 TYPE_PAX_EXTENDED -> {
                     val (path, linkPath) = parsePax(readPayload(input, size))
                     paxName = path
                     paxLink = linkPath
+                    skipPadding(input, size)
                     continue
                 }
                 TYPE_PAX_GLOBAL -> {
                     skip(input, size)
+                    skipPadding(input, size)
                     continue
                 }
             }
@@ -105,6 +114,7 @@ object RootfsExtractor {
             val relative = rawName.removePrefix("./").trimStart('/')
             if (relative.isEmpty()) {
                 skip(input, size)
+                skipPadding(input, size)
                 continue
             }
 
@@ -112,6 +122,7 @@ object RootfsExtractor {
             // Never write through a symlink that points outside the rootfs.
             if (!isInside(root, dest.parentFile)) {
                 skip(input, size)
+                skipPadding(input, size)
                 continue
             }
 
@@ -143,11 +154,21 @@ object RootfsExtractor {
                 TYPE_CHAR_DEVICE, TYPE_BLOCK_DEVICE, TYPE_FIFO -> skip(input, size)
                 else -> skip(input, size)
             }
+            // Every payload is padded to a multiple of the block size.
+            skipPadding(input, size)
         }
     }
 
     private fun isZeroBlock(block: ByteArray): Boolean {
         for (b in block) if (b.toInt() != 0) return false
+        return true
+    }
+
+    /** True when the header carries the "ustar" magic at offset 257. */
+    private fun hasUstarMagic(header: ByteArray): Boolean {
+        for (i in 0 until 5) {
+            if (header[257 + i].toInt() != USTAR_MAGIC[i].code) return false
+        }
         return true
     }
 
@@ -185,7 +206,7 @@ object RootfsExtractor {
     }
 
     private fun chmod(file: File, mode: Long) {
-        runCatching { Files.setPosixFilePermissions(file.toPath, posixPermissions(mode)) }
+        runCatching { Files.setPosixFilePermissions(file.toPath(), posixPermissions(mode)) }
         // java.nio cannot express the sticky bit, so the raw mode is applied
         // on top of it.
         runCatching { Os.chmod(file.path, mode.toInt()) }
@@ -193,15 +214,17 @@ object RootfsExtractor {
 
     private fun posixPermissions(mode: Long): Set<PosixFilePermission> {
         val permissions = mutableSetOf<PosixFilePermission>()
-        if (mode and 0o400L != 0L) permissions += PosixFilePermission.OWNER_READ
-        if (mode and 0o200L != 0L) permissions += PosixFilePermission.OWNER_WRITE
-        if (mode and 0o100L != 0L) permissions += PosixFilePermission.OWNER_EXECUTE
-        if (mode and 0o040L != 0L) permissions += PosixFilePermission.GROUP_READ
-        if (mode and 0o020L != 0L) permissions += PosixFilePermission.GROUP_WRITE
-        if (mode and 0o010L != 0L) permissions += PosixFilePermission.GROUP_EXECUTE
-        if (mode and 0o004L != 0L) permissions += PosixFilePermission.OTHERS_READ
-        if (mode and 0o002L != 0L) permissions += PosixFilePermission.OTHERS_WRITE
-        if (mode and 0o001L != 0L) permissions += PosixFilePermission.OTHERS_EXECUTE
+        // The rwx bits of the tar mode, in octal. Kotlin has no octal
+        // literals, so they are written in hex.
+        if (mode and 0x100L != 0L) permissions += PosixFilePermission.OWNER_READ
+        if (mode and 0x080L != 0L) permissions += PosixFilePermission.OWNER_WRITE
+        if (mode and 0x040L != 0L) permissions += PosixFilePermission.OWNER_EXECUTE
+        if (mode and 0x020L != 0L) permissions += PosixFilePermission.GROUP_READ
+        if (mode and 0x010L != 0L) permissions += PosixFilePermission.GROUP_WRITE
+        if (mode and 0x008L != 0L) permissions += PosixFilePermission.GROUP_EXECUTE
+        if (mode and 0x004L != 0L) permissions += PosixFilePermission.OTHERS_READ
+        if (mode and 0x002L != 0L) permissions += PosixFilePermission.OTHERS_WRITE
+        if (mode and 0x001L != 0L) permissions += PosixFilePermission.OTHERS_EXECUTE
         return permissions
     }
 
@@ -307,5 +330,11 @@ object RootfsExtractor {
             if (n < 0) return
             remaining -= n
         }
+    }
+
+    /** Skips the zero padding a tar payload is padded with. */
+    private fun skipPadding(input: InputStream, size: Long) {
+        val padding = (BLOCK - (size % BLOCK)) % BLOCK
+        if (padding > 0) skip(input, padding)
     }
 }
