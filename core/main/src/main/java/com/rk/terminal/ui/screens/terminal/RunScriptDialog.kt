@@ -24,7 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.rk.resources.strings
-import com.rk.terminal.ui.screens.settings.WorkingMode
+import com.rk.terminal.core.WorkingMode
 
 @Composable
 fun RunScriptDialog(

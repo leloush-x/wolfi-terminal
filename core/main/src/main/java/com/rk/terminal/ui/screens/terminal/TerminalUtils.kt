@@ -6,7 +6,7 @@ import android.graphics.Typeface
 import androidx.compose.runtime.mutableStateOf
 import com.rk.libcommons.child
 import com.rk.settings.Settings
-import com.rk.terminal.ui.screens.settings.WorkingMode
+import com.rk.terminal.core.WorkingMode
 
 object TerminalUtils {
     var darkText = mutableStateOf(Settings.blackTextColor)

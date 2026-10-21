@@ -11,6 +11,8 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Keeps sessions running while the screen is off, like termux-wake-lock. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- Package visibility for Shevery / Shizuku manager detection (Android 11+) -->
     <queries>

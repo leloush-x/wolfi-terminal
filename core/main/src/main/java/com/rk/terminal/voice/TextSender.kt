@@ -41,15 +41,24 @@ object TextSender {
         }
     }
 
+    /**
+     * Whether the running program asked for bracketed paste (DECSET 2004).
+     *
+     * The emulator does not expose this, so the flag is read reflectively.
+     * The lookup is cached — it runs on every dictated word.
+     */
+    private val bracketedPasteMethod: java.lang.reflect.Method? by lazy {
+        runCatching {
+            TerminalEmulator::class.java
+                .getDeclaredMethod("isDecsetInternalBitSet", Int::class.javaPrimitiveType)
+                .apply { isAccessible = true }
+        }.getOrNull()
+    }
+
     fun isBracketedPaste(emulator: TerminalEmulator?): Boolean {
+        val method = bracketedPasteMethod ?: return false
         if (emulator == null) return false
-        return try {
-            val m = emulator.javaClass.getDeclaredMethod("isDecsetInternalBitSet", Int::class.javaPrimitiveType)
-            m.isAccessible = true
-            m.invoke(emulator, BRACKETED_BIT) as Boolean
-        } catch (e: Exception) {
-            false
-        }
+        return runCatching { method.invoke(emulator, BRACKETED_BIT) as? Boolean }.getOrNull() ?: false
     }
 
     fun send(view: TerminalView?, text: String, trailingSpace: Boolean = true) {

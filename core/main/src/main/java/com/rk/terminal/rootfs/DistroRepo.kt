@@ -1,4 +1,4 @@
-package com.rk.terminal.ui.screens.downloader
+package com.rk.terminal.rootfs
 
 import android.os.Build
 import org.json.JSONObject
@@ -6,32 +6,30 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 /**
- * Shared client for leloush-x/wolfi-os-rootfs releases.
+ * Client for the rootfs releases in leloush-x/wolfi-os-rootfs.
  * Always resolves the newest release via the GitHub API.
- * Serves wolfi, debian and void rootfs assets from the same repo:
+ * Serves the wolfi, debian and void rootfs assets from the same repo:
  *   <distro>-rootfs-aarch64.tar.gz / <distro>-rootfs-x86_64.tar.gz
  */
-object WolfiRepo {
+object DistroRepo {
     const val REPO = "leloush-x/wolfi-os-rootfs"
     const val API_LATEST = "https://api.github.com/repos/$REPO/releases/latest"
 
-    fun assetNameForAbi(distro: String = "wolfi"): String {
-        val prefix = distro.lowercase()
+    fun assetNameForAbi(distro: Distro): String {
         val abi = Build.SUPPORTED_ABIS.firstOrNull {
             it in listOf("arm64-v8a", "x86_64")
         } ?: throw RuntimeException(
-            if (prefix == "wolfi") "Wolfi does not support ARM32 (armv7). Use Alpine on this device."
-            else "${prefix.replaceFirstChar { it.uppercase() }} does not support ARM32 (armv7). Use Alpine on this device."
+            "${distro.displayName} does not support ARM32 (armv7). Use Alpine on this device."
         )
         return when (abi) {
-            "arm64-v8a" -> "$prefix-rootfs-aarch64.tar.gz"
-            "x86_64" -> "$prefix-rootfs-x86_64.tar.gz"
+            "arm64-v8a" -> "${distro.id}-rootfs-aarch64.tar.gz"
+            "x86_64" -> "${distro.id}-rootfs-x86_64.tar.gz"
             else -> throw RuntimeException("Unsupported ABI: $abi")
         }
     }
 
     /** Blocking network call — invoke on Dispatchers.IO. Returns (tag, downloadUrl). */
-    fun fetchLatestFor(distro: String): Pair<String, String> {
+    fun fetchLatest(distro: Distro): Pair<String, String> {
         val assetName = assetNameForAbi(distro)
         var conn: HttpURLConnection? = null
         try {
@@ -63,7 +61,4 @@ object WolfiRepo {
             conn?.disconnect()
         }
     }
-
-    /** Blocking network call — invoke on Dispatchers.IO. Returns (tag, downloadUrl). */
-    fun fetchLatest(): Pair<String, String> = fetchLatestFor("wolfi")
 }

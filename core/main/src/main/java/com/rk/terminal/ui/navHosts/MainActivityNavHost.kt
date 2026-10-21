@@ -18,8 +18,8 @@ import com.rk.terminal.ui.routes.MainActivityRoutes
 import com.rk.terminal.ui.screens.customization.Customization
 import com.rk.terminal.ui.screens.downloader.SetupScreen
 import com.rk.terminal.github.GitHubReposScreen
-import com.rk.terminal.ui.screens.settings.Settings
-import com.rk.terminal.ui.screens.terminal.Rootfs
+import com.rk.terminal.ui.screens.settings.SettingsScreen
+import com.rk.terminal.rootfs.Rootfs
 import com.rk.terminal.ui.screens.terminal.TerminalScreen
 
 @Composable
@@ -57,7 +57,7 @@ fun MainActivityNavHost(
         
         composable(MainActivityRoutes.Settings.route) {
             UpdateStatusBar(mainActivity.window, true)
-            Settings(navController = navController, mainActivity = mainActivity)
+            SettingsScreen(navController = navController, mainActivity = mainActivity)
         }
         
         composable(MainActivityRoutes.Customization.route) {

@@ -36,6 +36,7 @@ fun TerminalViewLayout(
     modifier: Modifier = Modifier
 ) {
     val fontSizeSp by SettingsRepository.terminalFontSizeSp.collectAsState()
+    val keepScreenOn by SettingsRepository.keepScreenOn.collectAsState()
     Column(modifier = modifier) {
         AndroidView(
             factory = { ctx ->
@@ -87,17 +88,9 @@ fun TerminalViewLayout(
                     }
 
                     post {
-                        val color = TerminalUtils.getViewColor()
-                        val bgColor = TerminalUtils.getBackgroundColor()
-                        keepScreenOn = true
+                        applyTerminalColors(this)
                         requestFocus()
                         isFocusableInTouchMode = true
-
-                        mEmulator?.mColors?.mCurrentColors?.apply {
-                            set(256, color)
-                            set(257, bgColor)
-                            set(258, color)
-                        }
 
                         val colorsFile = ctx.localDir().child("colors.properties")
                         if (colorsFile.exists() && colorsFile.isFile) {
@@ -110,21 +103,32 @@ fun TerminalViewLayout(
             },
             modifier = Modifier.fillMaxWidth().weight(1f),
             update = { view ->
-                view.onScreenUpdated()
-                view.setTextSize(dpToPx(fontSizeSp, view.context))
-                val color = TerminalUtils.getViewColor()
-                val bgColor = TerminalUtils.getBackgroundColor()
-                view.mEmulator?.mColors?.mCurrentColors?.apply {
-                    set(256, color)
-                    set(257, bgColor)
-                    set(258, color)
+                // setTextSize() rebuilds the renderer, so it must only run when
+                // the size really changed: this block runs on every
+                // recomposition of the terminal screen.
+                val textSizePx = dpToPx(fontSizeSp, view.context)
+                if (view.textSize != textSizePx) {
+                    view.setTextSize(textSizePx)
                 }
+                view.keepScreenOn = keepScreenOn
+                applyTerminalColors(view)
             }
         )
 
         if (viewModel.showVirtualKeys) {
             VirtualKeysPager(viewModel)
         }
+    }
+}
+
+/** Applies the configured foreground/background colors to the 256/257/258 palette slots. */
+private fun applyTerminalColors(view: TerminalView) {
+    val color = TerminalUtils.getViewColor()
+    val bgColor = TerminalUtils.getBackgroundColor()
+    view.mEmulator?.mColors?.mCurrentColors?.apply {
+        set(256, color)
+        set(257, bgColor)
+        set(258, color)
     }
 }
 

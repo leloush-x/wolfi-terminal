@@ -33,23 +33,23 @@ object SettingsRepository {
     private const val KEY_VOICE_TRAILING_SPACE = "voice_trailing_space"
     private const val KEY_VOICE_MIC_BUTTON = "voice_mic_button_visible"
 
-    private val _voiceEnabled = MutableStateFlow(false)
-    val voiceEnabled: StateFlow<Boolean> = _voiceEnabled.asStateFlow()
-
+    // Kept in memory so the terminal never hits the disk while typing.
+    private val _voiceEnabled = MutableStateFlow(true)
     private val _keyboardInputMode = MutableStateFlow(0)
-    val keyboardInputMode: StateFlow<Int> = _keyboardInputMode.asStateFlow()
-
     private val _voicePreview = MutableStateFlow(true)
-    val voicePreview: StateFlow<Boolean> = _voicePreview.asStateFlow()
-
     private val _voiceLanguage = MutableStateFlow("")
-    val voiceLanguage: StateFlow<String> = _voiceLanguage.asStateFlow()
-
     private val _voiceTrailingSpace = MutableStateFlow(true)
-    val voiceTrailingSpace: StateFlow<Boolean> = _voiceTrailingSpace.asStateFlow()
+    private val _voiceMicButton = MutableStateFlow(true)
 
-    private val _voiceMicButtonVisible = MutableStateFlow(true)
-    val voiceMicButtonVisible: StateFlow<Boolean> = _voiceMicButtonVisible.asStateFlow()
+    // --- Screen and wake lock ---
+    private const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
+    private const val KEY_WAKE_LOCK = "wake_lock"
+
+    private val _keepScreenOn = MutableStateFlow(true)
+    val keepScreenOn: StateFlow<Boolean> = _keepScreenOn.asStateFlow()
+
+    private val _wakeLock = MutableStateFlow(false)
+    val wakeLock: StateFlow<Boolean> = _wakeLock.asStateFlow()
 
     fun init(context: Context? = null) {
         if (initialized) return
@@ -58,12 +58,14 @@ object SettingsRepository {
         // read-once
         migrateFont(prefs)
         _terminalFontSizeSp.value = prefs.getFloat(KEY_FONT_SIZE_SP, 13f).coerceIn(6f, 40f)
-        _voiceEnabled.value = prefs.getBoolean(KEY_VOICE_ENABLED, false)
+        _voiceEnabled.value = prefs.getBoolean(KEY_VOICE_ENABLED, true)
         _keyboardInputMode.value = prefs.getInt(KEY_KEYBOARD_INPUT_MODE, 0)
         _voicePreview.value = prefs.getBoolean(KEY_VOICE_PREVIEW, true)
         _voiceLanguage.value = prefs.getString(KEY_VOICE_LANGUAGE, "") ?: ""
         _voiceTrailingSpace.value = prefs.getBoolean(KEY_VOICE_TRAILING_SPACE, true)
-        _voiceMicButtonVisible.value = prefs.getBoolean(KEY_VOICE_MIC_BUTTON, true)
+        _voiceMicButton.value = prefs.getBoolean(KEY_VOICE_MIC_BUTTON, true)
+        _keepScreenOn.value = prefs.getBoolean(KEY_KEEP_SCREEN_ON, true)
+        _wakeLock.value = prefs.getBoolean(KEY_WAKE_LOCK, false)
         initialized = true
     }
 
@@ -121,21 +123,36 @@ object SettingsRepository {
         runCatching { prefs()?.edit()?.putBoolean(KEY_VOICE_TRAILING_SPACE, value)?.apply() }
     }
 
-    fun isVoiceMicButtonVisible(): Boolean = _voiceMicButtonVisible.value
+    fun isVoiceMicButtonVisible(): Boolean = _voiceMicButton.value
     fun setVoiceMicButtonVisible(value: Boolean) {
-        _voiceMicButtonVisible.value = value
+        _voiceMicButton.value = value
         runCatching { prefs()?.edit()?.putBoolean(KEY_VOICE_MIC_BUTTON, value)?.apply() }
+    }
+
+    // --- Screen and wake lock ---
+    fun isKeepScreenOn(): Boolean = _keepScreenOn.value
+    fun setKeepScreenOn(value: Boolean) {
+        _keepScreenOn.value = value
+        runCatching { prefs()?.edit()?.putBoolean(KEY_KEEP_SCREEN_ON, value)?.apply() }
+    }
+
+    fun isWakeLock(): Boolean = _wakeLock.value
+    fun setWakeLock(value: Boolean) {
+        _wakeLock.value = value
+        runCatching { prefs()?.edit()?.putBoolean(KEY_WAKE_LOCK, value)?.apply() }
     }
 
     /** Reset in-memory state for tests. */
     fun resetForTests() {
         initialized = false
         _terminalFontSizeSp.value = 13f
-        _voiceEnabled.value = false
+        _voiceEnabled.value = true
         _keyboardInputMode.value = 0
         _voicePreview.value = true
         _voiceLanguage.value = ""
         _voiceTrailingSpace.value = true
-        _voiceMicButtonVisible.value = true
+        _voiceMicButton.value = true
+        _keepScreenOn.value = true
+        _wakeLock.value = false
     }
 }

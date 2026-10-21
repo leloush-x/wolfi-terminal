@@ -8,7 +8,6 @@ import com.rk.libcommons.debianHomeDir
 import com.rk.libcommons.voidDir
 import com.rk.libcommons.voidHomeDir
 import com.rk.libcommons.child
-import com.rk.libcommons.createFileIfNot
 import com.rk.libcommons.localBinDir
 import com.rk.libcommons.localDir
 import com.rk.libcommons.localLibDir
@@ -20,7 +19,7 @@ import com.rk.terminal.App.Companion.getTempDir
 import com.rk.terminal.BuildConfig
 import com.rk.terminal.root.SheveryManager
 import com.rk.terminal.root.isSuVisible
-import com.rk.terminal.ui.screens.settings.WorkingMode
+import com.rk.terminal.core.WorkingMode
 import com.termux.terminal.TerminalEmulator
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
@@ -198,28 +197,35 @@ object MkSession {
             }
 
             fun installAssetBin(name: String, asset: String) {
-                // Always refresh: these are app-managed scripts, rewriting
-                // propagates fixes (e.g. new rootfs handling) to existing installs.
-                localBinDir().child(name).apply {
-                    createFileIfNot()
-                    assets.open(asset).bufferedReader().use { it.readText() }.let {
-                        writeText(it)
-                    }
-                }
+                // These are app-managed scripts: refreshing them propagates fixes
+                // (e.g. new rootfs handling) to existing installs. Writing only
+                // when the content differs keeps session start cheap — this runs
+                // for every session, and there are a dozen of these.
+                val target = localBinDir().child(name)
+                val content = assets.open(asset).bufferedReader().use { it.readText() }
+                if (target.exists() && target.readText() == content) return
+                target.parentFile?.mkdirs()
+                target.writeText(content)
             }
 
-            installAssetBin("init-host", "init-host.sh")
-            installAssetBin("init-host-chroot", "init-host-chroot.sh")
-            installAssetBin("init-wolfi-host", "init-wolfi-host.sh")
-            installAssetBin("init-wolfi-host-chroot", "init-wolfi-host-chroot.sh")
-            installAssetBin("init-debian-host", "init-debian-host.sh")
-            installAssetBin("init-debian-host-chroot", "init-debian-host-chroot.sh")
-            installAssetBin("init-void-host", "init-void-host.sh")
-            installAssetBin("init-void-host-chroot", "init-void-host-chroot.sh")
-            installAssetBin("init", "init.sh")
-            installAssetBin("init-wolfi", "init-wolfi.sh")
-            installAssetBin("init-debian", "init-debian.sh")
-            installAssetBin("init-void", "init-void.sh")
+            listOf(
+                "init-host" to "init-host.sh",
+                "init-host-chroot" to "init-host-chroot.sh",
+                "init-wolfi-host" to "init-wolfi-host.sh",
+                "init-wolfi-host-chroot" to "init-wolfi-host-chroot.sh",
+                "init-debian-host" to "init-debian-host.sh",
+                "init-debian-host-chroot" to "init-debian-host-chroot.sh",
+                "init-void-host" to "init-void-host.sh",
+                "init-void-host-chroot" to "init-void-host-chroot.sh",
+                "init" to "init.sh",
+                "init-wolfi" to "init-wolfi.sh",
+                "init-debian" to "init-debian.sh",
+                "init-void" to "init-void.sh",
+                // Busybox rm cannot remove a non-empty directory under proot,
+                // so the distro gets this wrapper instead.
+                "rm" to "rm-wrapper.sh"
+            ).forEach { (name, asset) -> installAssetBin(name, asset) }
+            localBinDir().child("rm").setExecutable(true)
 
             val initFile: File = localBinDir().child("init-host")
             val initChrootFile: File = localBinDir().child("init-host-chroot")
@@ -229,16 +235,6 @@ object MkSession {
             val initDebianChrootFile: File = localBinDir().child("init-debian-host-chroot")
             val initVoidFile: File = localBinDir().child("init-void-host")
             val initVoidChrootFile: File = localBinDir().child("init-void-host-chroot")
-
-            localBinDir().child("rm").apply {
-                if (exists().not()) {
-                    createFileIfNot()
-                    assets.open("rm-wrapper.sh").bufferedReader().use { it.readText() }.let {
-                        writeText(it)
-                    }
-                    setExecutable(true)
-                }
-            }
 
             val env = mutableListOf(
                 "PATH=${System.getenv("PATH")}:/sbin:${localBinDir().absolutePath}",

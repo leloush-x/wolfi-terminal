@@ -6,14 +6,12 @@ import android.content.SharedPreferences
 import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import com.rk.libcommons.application
-import com.rk.terminal.ui.screens.settings.WorkingMode
-import com.rk.terminal.ui.screens.settings.InputMode
+import com.rk.terminal.core.InputMode
+import com.rk.terminal.core.WorkingMode
+import com.rk.terminal.rootfs.Distro
 
 object Settings {
     //Boolean
-    var seccomp
-        get() = Preference.getBoolean(key = "seccomp", default = false)
-        set(value) = Preference.setBoolean(key = "seccomp",value)
     var amoled
         get() = Preference.getBoolean(key = "oled", default = false)
         set(value) = Preference.setBoolean(key = "oled",value)
@@ -102,17 +100,12 @@ object Settings {
         get() = Preference.getInt(key = "exec_mode", default = -1)
         set(value) = Preference.setInt(key = "exec_mode", value)
 
-    var wolfi_version
-        get() = Preference.getString(key = "wolfi_version", default = "")
-        set(value) = Preference.setString(key = "wolfi_version", value)
+    /** Installed rootfs version tag of a distro, e.g. "rootfs-1a2b3c". */
+    fun getRootfsVersion(distro: Distro): String =
+        Preference.getString(key = distro.versionKey, default = "")
 
-    var debian_version
-        get() = Preference.getString(key = "debian_version", default = "")
-        set(value) = Preference.setString(key = "debian_version", value)
-
-    var void_version
-        get() = Preference.getString(key = "void_version", default = "")
-        set(value) = Preference.setString(key = "void_version", value)
+    fun setRootfsVersion(distro: Distro, value: String) =
+        Preference.setString(key = distro.versionKey, value = value)
 
     /** Login shell for Linux sessions. bash by default, falls back to distro default if missing. */
     var login_shell

@@ -11,9 +11,9 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.ViewModel
 import com.google.android.material.R
 import com.rk.settings.Settings
+import com.rk.terminal.core.WorkingMode
 import com.rk.terminal.service.SessionService
 import com.rk.terminal.ui.activities.terminal.MainActivity
-import com.rk.terminal.ui.screens.settings.WorkingMode
 import com.rk.terminal.ui.screens.terminal.virtualkeys.VirtualKeysListener
 import com.rk.terminal.ui.screens.terminal.virtualkeys.VirtualKeysView
 import com.termux.view.TerminalView
@@ -70,7 +70,6 @@ class TerminalViewModel : ViewModel() {
         terminal.post {
             val fgColor = TerminalUtils.getViewColor()
             val bgColor = TerminalUtils.getBackgroundColor()
-            terminal.keepScreenOn = true
             terminal.requestFocus()
             terminal.isFocusableInTouchMode = true
 

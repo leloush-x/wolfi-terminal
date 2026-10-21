@@ -38,12 +38,14 @@ class SettingsRepositoryTest {
     @Test
     fun `defaults for missing keys`() {
         assertEquals(13f, SettingsRepository.getTerminalFontSizeSp(), 0.001f)
-        assertFalse(SettingsRepository.isVoiceEnabled())
+        assertTrue(SettingsRepository.isVoiceEnabled())
         assertEquals(0, SettingsRepository.getKeyboardInputMode())
         assertTrue(SettingsRepository.isVoicePreview())
         assertEquals("", SettingsRepository.getVoiceLanguage())
         assertTrue(SettingsRepository.isVoiceTrailingSpace())
         assertTrue(SettingsRepository.isVoiceMicButtonVisible())
+        assertTrue(SettingsRepository.isKeepScreenOn())
+        assertFalse(SettingsRepository.isWakeLock())
     }
 
     @Test
@@ -74,7 +76,7 @@ class SettingsRepositoryTest {
     }
 
     @Test
-    fun `feature off default for upgrading users`() {
-        assertFalse(SettingsRepository.isVoiceEnabled())
+    fun `voice input is on by default for upgrading users`() {
+        assertTrue(SettingsRepository.isVoiceEnabled())
     }
 }

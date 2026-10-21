@@ -536,6 +536,11 @@ public final class TerminalView extends View {
         updateSize();
     }
 
+    /** Current text size in pixels, 0 before the renderer exists. */
+    public int getTextSize() {
+        return mRenderer == null ? 0 : mRenderer.mTextSize;
+    }
+
     public void setTypeface(Typeface newTypeface) {
         mRenderer = new TerminalRenderer(mRenderer.mTextSize, newTypeface);
         updateSize();

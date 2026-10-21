@@ -9,7 +9,6 @@ import com.rk.libcommons.application
 import com.rk.resources.Res
 import com.rk.terminal.root.SheveryManager
 import com.rk.terminal.ui.screens.terminal.TerminalUtils
-import com.rk.update.UpdateManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -47,7 +46,6 @@ class App : Application() {
 
         ANRWatchDog().start()
 
-        UpdateManager(this).onUpdate()
 
         if (BuildConfig.DEBUG) {
             StrictMode.setVmPolicy(

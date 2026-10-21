@@ -33,10 +33,11 @@ import com.rk.resources.strings
 import com.rk.terminal.ui.activities.terminal.MainActivity
 import com.rk.terminal.ui.activities.terminal.MainViewModel
 import com.rk.terminal.ui.components.SetStatusBarTextColor
-import com.rk.terminal.ui.screens.downloader.AlpineSetupScreen
-import com.rk.terminal.ui.screens.downloader.WolfiDownloadScreen
+import com.rk.terminal.ui.screens.downloader.DistroSetupScreen
 import com.rk.terminal.ui.screens.settings.SettingsCard
-import com.rk.terminal.ui.screens.settings.WorkingMode
+import com.rk.terminal.core.WorkingMode
+import com.rk.terminal.rootfs.Distro
+import com.rk.terminal.rootfs.Rootfs
 import com.rk.terminal.ui.screens.terminal.virtualkeys.VirtualKeysListener
 import com.rk.terminal.voice.VoiceMicControl
 import kotlinx.coroutines.Dispatchers
@@ -59,75 +60,27 @@ fun TerminalScreen(
     val configuration = LocalConfiguration.current
     val drawerWidth = (configuration.screenWidthDp * 0.84).dp
     var showAddDialog by remember { mutableStateOf(false) }
-    var showWolfiDownloader by remember { mutableStateOf(false) }
-    var showDebianDownloader by remember { mutableStateOf(false) }
-    var showVoidDownloader by remember { mutableStateOf(false) }
-    var showAlpineSetup by remember { mutableStateOf(false) }
+    var pendingDistro by remember { mutableStateOf<Distro?>(null) }
 
     val sessionBinder = mainViewModel.sessionBinder
 
-    if (showWolfiDownloader && sessionBinder != null) {
-        WolfiDownloadScreen(
-            onCancel = { showWolfiDownloader = false },
+    val pending = pendingDistro
+    if (pending != null && sessionBinder != null) {
+        DistroSetupScreen(
+            distro = pending,
+            onCancel = { pendingDistro = null },
             onComplete = {
-                showWolfiDownloader = false
-                val terminal = terminalViewModel.terminalView ?: return@WolfiDownloadScreen
+                pendingDistro = null
+                val terminal = terminalViewModel.terminalView ?: return@DistroSetupScreen
                 val client = TerminalBackEnd(terminal, mainActivity)
                 val sessionId = generateUniqueSessionId(sessionBinder.getService().sessionList.keys.toList())
-                sessionBinder.createSession(sessionId, client, WorkingMode.WOLFI)
+                sessionBinder.createSession(sessionId, client, pending.workingMode)
                 terminalViewModel.changeSession(context, sessionBinder, sessionId)
             }
         )
         return
     }
 
-    if (showDebianDownloader && sessionBinder != null) {
-        WolfiDownloadScreen(
-            distro = "debian",
-            onCancel = { showDebianDownloader = false },
-            onComplete = {
-                showDebianDownloader = false
-                val terminal = terminalViewModel.terminalView ?: return@WolfiDownloadScreen
-                val client = TerminalBackEnd(terminal, mainActivity)
-                val sessionId = generateUniqueSessionId(sessionBinder.getService().sessionList.keys.toList())
-                sessionBinder.createSession(sessionId, client, WorkingMode.DEBIAN)
-                terminalViewModel.changeSession(context, sessionBinder, sessionId)
-            }
-        )
-        return
-    }
-
-    if (showVoidDownloader && sessionBinder != null) {
-        WolfiDownloadScreen(
-            distro = "void",
-            onCancel = { showVoidDownloader = false },
-            onComplete = {
-                showVoidDownloader = false
-                val terminal = terminalViewModel.terminalView ?: return@WolfiDownloadScreen
-                val client = TerminalBackEnd(terminal, mainActivity)
-                val sessionId = generateUniqueSessionId(sessionBinder.getService().sessionList.keys.toList())
-                sessionBinder.createSession(sessionId, client, WorkingMode.VOID)
-                terminalViewModel.changeSession(context, sessionBinder, sessionId)
-            }
-        )
-        return
-    }
-
-    if (showAlpineSetup && sessionBinder != null) {
-        AlpineSetupScreen(
-            onCancel = { showAlpineSetup = false },
-            onComplete = {
-                showAlpineSetup = false
-                val terminal = terminalViewModel.terminalView ?: return@AlpineSetupScreen
-                val client = TerminalBackEnd(terminal, mainActivity)
-                val sessionId = generateUniqueSessionId(sessionBinder.getService().sessionList.keys.toList())
-                sessionBinder.createSession(sessionId, client, WorkingMode.ALPINE)
-                terminalViewModel.changeSession(context, sessionBinder, sessionId)
-            }
-        )
-        return
-    }
-    
     LaunchedEffect(isDarkActive) {
         withContext(Dispatchers.IO) {
             if (context.filesDir.child("background").exists().not()) {
@@ -159,24 +112,10 @@ fun TerminalScreen(
         AddSessionDialog(
             onDismiss = { showAddDialog = false },
             onCreateSession = { mode ->
-                if (mode == WorkingMode.WOLFI && !Rootfs.isWolfiRootfsInstalled(context)) {
+                val distro = Distro.fromWorkingMode(mode)
+                if (distro != null && !Rootfs.isDistroInstalled(context, distro)) {
                     showAddDialog = false
-                    showWolfiDownloader = true
-                    return@AddSessionDialog
-                }
-                if (mode == WorkingMode.DEBIAN && !Rootfs.isDebianRootfsInstalled(context)) {
-                    showAddDialog = false
-                    showDebianDownloader = true
-                    return@AddSessionDialog
-                }
-                if (mode == WorkingMode.VOID && !Rootfs.isVoidRootfsInstalled(context)) {
-                    showAddDialog = false
-                    showVoidDownloader = true
-                    return@AddSessionDialog
-                }
-                if (mode == WorkingMode.ALPINE && !Rootfs.isRootfsInstalled(context)) {
-                    showAddDialog = false
-                    showAlpineSetup = true
+                    pendingDistro = distro
                     return@AddSessionDialog
                 }
                 val sessionId = generateUniqueSessionId(sessionBinder.getService().sessionList.keys.toList())
@@ -240,9 +179,9 @@ fun TerminalScreen(
                             .imePadding()
                             .navigationBarsPadding()
                             .padding(top = topPadding)
-                            .fillMaxSize()
+                            .weight(1f)
                     )
-                    VoiceMicControl(terminalViewModel = terminalViewModel, scope = scope)
+                    VoiceMicControl(terminalViewModel = terminalViewModel)
                 }
             }
         }

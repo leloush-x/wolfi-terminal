@@ -5,24 +5,33 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.net.wifi.WifiManager
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.annotation.RequiresApi
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.NotificationCompat
 import com.rk.resources.drawables
-import com.rk.resources.strings
+import com.rk.settings.SettingsRepository
 import com.rk.terminal.ui.activities.terminal.MainActivity
 import com.rk.terminal.ui.screens.terminal.CustomSessions
 import com.rk.terminal.ui.screens.terminal.MkSession
 import com.rk.terminal.ui.screens.terminal.PendingCommand
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 
 class SessionService : Service() {
     private val sessions = hashMapOf<String, TerminalSession>()
@@ -31,6 +40,10 @@ class SessionService : Service() {
     private val initialMode = CustomSessions.resolveDefaultSession()
     var currentSession = mutableStateOf(Pair("main", initialMode.first))
     var currentCustomSession = initialMode.second
+
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var wakeLock: PowerManager.WakeLock? = null
+    private var wifiLock: WifiManager.WifiLock? = null
 
     inner class SessionBinder : Binder() {
         fun getService(): SessionService = this@SessionService
@@ -129,6 +142,8 @@ class SessionService : Service() {
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onDestroy() {
+        releaseWakeLock()
+        serviceScope.cancel()
         sessions.values.forEach { it.finishIfRunning() }
         super.onDestroy()
     }
@@ -145,14 +160,57 @@ class SessionService : Service() {
         } else {
             startForeground(1, notification)
         }
+
+        serviceScope.launch {
+            SettingsRepository.wakeLock.collect { enabled ->
+                if (enabled) acquireWakeLock() else releaseWakeLock()
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == "ACTION_EXIT") {
-            sessions.values.forEach { it.finishIfRunning() }
-            stopSelf()
+        when (intent?.action) {
+            ACTION_EXIT -> {
+                sessions.values.forEach { it.finishIfRunning() }
+                stopSelf()
+            }
+            ACTION_TOGGLE_WAKE_LOCK -> {
+                SettingsRepository.setWakeLock(!SettingsRepository.isWakeLock())
+                updateNotification()
+            }
         }
         return super.onStartCommand(intent, flags, startId)
+    }
+
+    /**
+     * Holds a partial wake lock (and a high-performance wifi lock) so the
+     * sessions keep running with the screen off, the way `termux-wake-lock`
+     * does. The screen itself is kept on separately by the terminal view.
+     */
+    @Suppress("WakelockTimeout")
+    private fun acquireWakeLock() {
+        if (wakeLock != null) return
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "$WAKE_LOCK_TAG:service").also {
+            it.acquire()
+        }
+        runCatching {
+            val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                WifiManager.WIFI_MODE_FULL
+            } else {
+                @Suppress("DEPRECATION")
+                WifiManager.WIFI_MODE_FULL_HIGH_PERF
+            }
+            wifiLock = wm.createWifiLock(mode, WAKE_LOCK_TAG).also { it.acquire() }
+        }
+    }
+
+    private fun releaseWakeLock() {
+        wakeLock?.let { if (it.isHeld) it.release() }
+        wakeLock = null
+        wifiLock?.let { if (it.isHeld) it.release() }
+        wifiLock = null
     }
 
     private fun createNotification(): Notification {
@@ -161,10 +219,18 @@ class SessionService : Service() {
             this, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         val exitIntent = Intent(this, SessionService::class.java).apply {
-            action = "ACTION_EXIT"
+            action = ACTION_EXIT
         }
         val exitPendingIntent = PendingIntent.getService(
             this, 1, exitIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val wakeLocked = SettingsRepository.isWakeLock()
+        val wakeIntent = Intent(this, SessionService::class.java).apply {
+            action = ACTION_TOGGLE_WAKE_LOCK
+        }
+        val wakePendingIntent = PendingIntent.getService(
+            this, 2, wakeIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
@@ -172,6 +238,13 @@ class SessionService : Service() {
             .setContentText(getNotificationContentText())
             .setSmallIcon(drawables.terminal)
             .setContentIntent(pendingIntent)
+            .addAction(
+                NotificationCompat.Action.Builder(
+                    null,
+                    if (wakeLocked) "WAKE ON" else "WAKE OFF",
+                    wakePendingIntent
+                ).build()
+            )
             .addAction(
                 NotificationCompat.Action.Builder(
                     null,
@@ -205,5 +278,11 @@ class SessionService : Service() {
     private fun getNotificationContentText(): String {
         val count = sessions.size
         return if (count == 1) "1 session running" else "$count sessions running"
+    }
+
+    companion object {
+        private const val WAKE_LOCK_TAG = "wolfiterminal"
+        const val ACTION_EXIT = "com.rk.terminal.service.ACTION_EXIT"
+        const val ACTION_TOGGLE_WAKE_LOCK = "com.rk.terminal.service.ACTION_TOGGLE_WAKE_LOCK"
     }
 }

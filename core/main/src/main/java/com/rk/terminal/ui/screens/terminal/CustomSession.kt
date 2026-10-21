@@ -2,7 +2,7 @@ package com.rk.terminal.ui.screens.terminal
 
 import com.rk.settings.Preference
 import com.rk.settings.Settings
-import com.rk.terminal.ui.screens.settings.WorkingMode
+import com.rk.terminal.core.WorkingMode
 import org.json.JSONArray
 import org.json.JSONObject
 
