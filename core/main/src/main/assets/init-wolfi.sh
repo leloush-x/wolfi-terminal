@@ -7,6 +7,12 @@ if [ ! -s /etc/resolv.conf ]; then
     echo "nameserver 8.8.8.8" > /etc/resolv.conf
 fi
 
+# The rootfs archive leaves /etc/hosts out, because it belongs to the machine and
+# not to the image. Without it nothing in the rootfs can resolve "localhost".
+if [ ! -s /etc/hosts ]; then
+    printf "127.0.0.1\tlocalhost\n::1\tlocalhost ip6-localhost ip6-loopback\n" > /etc/hosts
+fi
+
 
 export PS1='\[\033[01;32m\]\u@rewolf\[\033[00m\]:\[\033[01;34m\]\w\[\033[00m\]\$ '
 # shellcheck disable=SC2034
