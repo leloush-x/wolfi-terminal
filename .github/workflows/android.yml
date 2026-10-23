@@ -67,8 +67,9 @@ jobs:
   build:
     name: Build debug and release APKs
     runs-on: ubuntu-latest
-    # Every branch gets debug and test-key release APKs so release-only
-    # configuration can be checked before changes are merged.
+    # Main's release workflow builds the production APK once in build-release.
+    if: github.ref != 'refs/heads/main'
+    # Non-main branches get debug and test-key release APKs for CI checks.
     steps:
       - uses: actions/checkout@v4
 
@@ -164,18 +165,9 @@ jobs:
           printf 'Expected test-key SHA-256: %s\nAPK signer SHA-256: %s\n' "$EXPECTED" "$ACTUAL"
           test -n "$APK" && test -n "$EXPECTED" && test "$ACTUAL" = "$EXPECTED"
 
-      - name: Rename APK
-        env:
-          RELEASE_TAG: ${{ github.event.inputs.tag || 'latest' }}
+      - name: Name APK
         run: |
-          case "$RELEASE_TAG" in
-            ''|*[!A-Za-z0-9._-]*) echo 'Invalid release tag for asset filename' >&2; exit 1 ;;
-          esac
-          APK="app/wolfi-terminal-${RELEASE_TAG}.apk"
-          mv app/build/outputs/apk/release/*.apk "$APK"
-          if [ "$RELEASE_TAG" != latest ]; then
-            cp "$APK" app/wolfi-terminal-latest.apk
-          fi
+          mv app/build/outputs/apk/release/*.apk app/wolfi-terminal-latest.apk
 
       - name: Delete xed.keystore and signing.properties
         run: rm -f /tmp/xed.keystore /tmp/signing.properties
@@ -209,13 +201,9 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.inputs.tag || 'latest' }}
         run: |
-          APK="app/wolfi-terminal-${RELEASE_TAG}.apk"
+          APK=app/wolfi-terminal-latest.apk
           test -s "$APK"
           sha256sum "$APK" > "$APK.sha256"
-          if [ "$RELEASE_TAG" != latest ]; then
-            cp "$APK" app/wolfi-terminal-latest.apk
-          fi
-          sha256sum app/wolfi-terminal-latest.apk > app/wolfi-terminal-latest.apk.sha256
           python3 - "$APK" <<'PY'
           import datetime, hashlib, json, os, pathlib, re, subprocess, sys
           apk = pathlib.Path(sys.argv[1])
@@ -233,9 +221,15 @@ jobs:
           PY
 
       - name: Verify APK
+        run: test -s app/wolfi-terminal-latest.apk
+
+      - name: Remove legacy versioned APK assets
         env:
           RELEASE_TAG: ${{ github.event.inputs.tag || 'latest' }}
-        run: test -s "app/wolfi-terminal-${RELEASE_TAG}.apk"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete-asset "$RELEASE_TAG" "wolfi-terminal-${RELEASE_TAG}.apk" --yes || true
+          gh release delete-asset "$RELEASE_TAG" "wolfi-terminal-${RELEASE_TAG}.apk.sha256" --yes || true
 
       - name: Set Commit Hash
         run: echo "COMMIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
@@ -258,15 +252,14 @@ jobs:
 
             | File | Use for |
             |------|---------|
-            | `wolfi-terminal-${{ github.event.inputs.tag || 'latest' }}.apk` | New install |
-            | `wolfi-terminal-latest.apk` | Stable download link |
+            | `wolfi-terminal-latest.apk` | New install and updates |
 
             This release returns to the original `com.wolfi.terminal` package and test key. It can update matching installs; the previous `.secure` package remains separate, with no data migration.
 
             Direct link: https://github.com/leloush-x/wolfi-terminal/releases/latest/download/wolfi-terminal-latest.apk
           files: |
-            app/wolfi-terminal-*.apk
-            app/wolfi-terminal-*.apk.sha256
+            app/wolfi-terminal-latest.apk
+            app/wolfi-terminal-latest.apk.sha256
             app/version.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
