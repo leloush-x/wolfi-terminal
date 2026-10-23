@@ -38,12 +38,10 @@ class SettingsRepositoryTest {
     @Test
     fun `defaults for missing keys`() {
         assertEquals(13f, SettingsRepository.getTerminalFontSizeSp(), 0.001f)
-        assertTrue(SettingsRepository.isVoiceEnabled())
         assertEquals(0, SettingsRepository.getKeyboardInputMode())
         assertTrue(SettingsRepository.isVoicePreview())
         assertEquals("", SettingsRepository.getVoiceLanguage())
         assertTrue(SettingsRepository.isVoiceTrailingSpace())
-        assertTrue(SettingsRepository.isVoiceMicButtonVisible())
         assertTrue(SettingsRepository.isKeepScreenOn())
         assertFalse(SettingsRepository.isWakeLock())
     }
@@ -73,10 +71,5 @@ class SettingsRepositoryTest {
         application?.getSharedPreferences("Settings", android.content.Context.MODE_PRIVATE)?.edit()?.putInt("terminal_font_size", 18)?.commit()
         SettingsRepository.init(application)
         assertEquals(18f, SettingsRepository.getTerminalFontSizeSp(), 0.001f)
-    }
-
-    @Test
-    fun `voice input is on by default for upgrading users`() {
-        assertTrue(SettingsRepository.isVoiceEnabled())
     }
 }

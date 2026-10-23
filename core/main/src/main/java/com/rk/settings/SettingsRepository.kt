@@ -26,20 +26,16 @@ object SettingsRepository {
     val terminalFontSizeSp: StateFlow<Float> = _terminalFontSizeSp.asStateFlow()
 
     // --- Voice input (new keys only) ---
-    private const val KEY_VOICE_ENABLED = "voice_input_enabled"
     private const val KEY_KEYBOARD_INPUT_MODE = "keyboard_input_mode"
     private const val KEY_VOICE_PREVIEW = "voice_preview"
     private const val KEY_VOICE_LANGUAGE = "voice_language"
     private const val KEY_VOICE_TRAILING_SPACE = "voice_trailing_space"
-    private const val KEY_VOICE_MIC_BUTTON = "voice_mic_button_visible"
 
     // Kept in memory so the terminal never hits the disk while typing.
-    private val _voiceEnabled = MutableStateFlow(true)
     private val _keyboardInputMode = MutableStateFlow(0)
     private val _voicePreview = MutableStateFlow(true)
     private val _voiceLanguage = MutableStateFlow("")
     private val _voiceTrailingSpace = MutableStateFlow(true)
-    private val _voiceMicButton = MutableStateFlow(true)
 
     // --- Screen and wake lock ---
     private const val KEY_KEEP_SCREEN_ON = "keep_screen_on"
@@ -59,12 +55,10 @@ object SettingsRepository {
         migrateFont(prefs)
         _terminalFontSizeSp.value = prefs.getFloat(KEY_FONT_SIZE_SP, 13f).coerceIn(6f, 40f)
         // Native Android speech recognition is available immediately by default.
-        _voiceEnabled.value = true
         _keyboardInputMode.value = prefs.getInt(KEY_KEYBOARD_INPUT_MODE, 0)
         _voicePreview.value = prefs.getBoolean(KEY_VOICE_PREVIEW, true)
         _voiceLanguage.value = prefs.getString(KEY_VOICE_LANGUAGE, "") ?: ""
         _voiceTrailingSpace.value = prefs.getBoolean(KEY_VOICE_TRAILING_SPACE, true)
-        _voiceMicButton.value = true
         _keepScreenOn.value = prefs.getBoolean(KEY_KEEP_SCREEN_ON, true)
         _wakeLock.value = prefs.getBoolean(KEY_WAKE_LOCK, false)
         initialized = true
@@ -82,8 +76,6 @@ object SettingsRepository {
         prefs.edit().putBoolean(KEY_FONT_SIZE_MIGRATED, true).apply()
     }
 
-    fun migrate() = init()
-
     // --- Font size ---
     fun getTerminalFontSizeSp(): Float = _terminalFontSizeSp.value
 
@@ -94,12 +86,6 @@ object SettingsRepository {
     }
 
     // --- Voice ---
-    fun isVoiceEnabled(): Boolean = true
-    fun setVoiceEnabled(value: Boolean) {
-        _voiceEnabled.value = value
-        runCatching { prefs()?.edit()?.putBoolean(KEY_VOICE_ENABLED, value)?.apply() }
-    }
-
     fun getKeyboardInputMode(): Int = _keyboardInputMode.value
     fun setKeyboardInputMode(value: Int) {
         _keyboardInputMode.value = value
@@ -124,12 +110,6 @@ object SettingsRepository {
         runCatching { prefs()?.edit()?.putBoolean(KEY_VOICE_TRAILING_SPACE, value)?.apply() }
     }
 
-    fun isVoiceMicButtonVisible(): Boolean = true
-    fun setVoiceMicButtonVisible(value: Boolean) {
-        _voiceMicButton.value = value
-        runCatching { prefs()?.edit()?.putBoolean(KEY_VOICE_MIC_BUTTON, value)?.apply() }
-    }
-
     // --- Screen and wake lock ---
     fun isKeepScreenOn(): Boolean = _keepScreenOn.value
     fun setKeepScreenOn(value: Boolean) {
@@ -147,12 +127,10 @@ object SettingsRepository {
     fun resetForTests() {
         initialized = false
         _terminalFontSizeSp.value = 13f
-        _voiceEnabled.value = true
         _keyboardInputMode.value = 0
         _voicePreview.value = true
         _voiceLanguage.value = ""
         _voiceTrailingSpace.value = true
-        _voiceMicButton.value = true
         _keepScreenOn.value = true
         _wakeLock.value = false
     }
