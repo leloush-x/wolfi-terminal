@@ -28,7 +28,7 @@ One rolling release, always the newest build from `main`:
 - **Releases page:** https://github.com/leloush-x/wolfi-terminal/releases/latest
 - **Direct APK:** https://github.com/leloush-x/wolfi-terminal/releases/latest/download/wolfi-terminal-latest.apk
 
-Install it like any APK (allow install from your browser / file manager once). Current line is v1.3.2. Requires Android 8.0+ (API 26). This package installs separately from the older `com.wolfi.terminal` app, so its data is not migrated; later updates to this package keep its sessions, settings, and distro files.
+Install it like any APK (allow install from your browser / file manager once). Current line is v1.3.2. Requires Android 8.0+ (API 26). This release returns to the original `com.wolfi.terminal` package and test key, so it can update matching installs; the previous `.secure` package remains separate, with no data migration. Later updates to this package keep its sessions, settings, and distro files.
 
 Every push runs unit tests and builds debug plus test-key-signed release APKs as CI artifacts. A release is published from `main` by manually dispatching the release workflow; it uploads both a versioned APK and `wolfi-terminal-latest.apk` for the stable download link.
 

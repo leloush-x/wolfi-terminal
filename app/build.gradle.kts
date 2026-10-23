@@ -77,7 +77,7 @@ android {
 
     
     defaultConfig {
-        applicationId = "com.wolfi.terminal.secure"
+        applicationId = "com.wolfi.terminal"
         minSdk = 26
         targetSdk = 37
         versionCode = 12

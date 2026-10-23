@@ -255,7 +255,7 @@ jobs:
             | `wolfi-terminal-${{ github.event.inputs.tag || 'latest' }}.apk` | New install |
             | `wolfi-terminal-latest.apk` | Stable download link |
 
-            Signed with the repository test key. This package installs separately from the older `com.wolfi.terminal` app; data is not migrated.
+            This release returns to the original `com.wolfi.terminal` package and test key. It can update matching installs; the previous `.secure` package remains separate, with no data migration.
 
             Direct link: https://github.com/leloush-x/wolfi-terminal/releases/latest/download/wolfi-terminal-latest.apk
           files: |
