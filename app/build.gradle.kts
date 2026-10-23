@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.gradle.api.GradleException
 
 plugins {
     alias(libs.plugins.android.application)
@@ -41,6 +42,8 @@ android {
                     storeFile = configuredStore
                 }
             }
+            // Use the task-time validation below. AGP eagerly configures this
+            // signing config for debug and test tasks as well.
         }
         getByName("debug") {
             storeFile = file(layout.buildDirectory.dir("../testkey.keystore"))
@@ -103,24 +106,30 @@ android {
 
 // AGP configures every signing config for debug and unit-test tasks too. Defer
 // the requirement until a release task is actually requested.
-gradle.taskGraph.whenReady {
-    if (allTasks.any { it.name.contains("Release", ignoreCase = true) }) {
+tasks.configureEach {
+    if (name.contains("Release", ignoreCase = true) || name.contains("BundleRelease", ignoreCase = true)) {
+        doFirst {
         val isGithubAction = System.getenv("GITHUB_ACTIONS") == "true"
         val propertiesFile = File(
             if (isGithubAction) "/tmp/signing.properties"
             else System.getenv("SIGNING_PROPERTIES") ?: rootProject.file("signing.properties").path
         )
-        require(propertiesFile.isFile && propertiesFile.length() > 0L) {
+        if (!propertiesFile.isFile || propertiesFile.length() == 0L) {
+            throw GradleException(
             "Release signing properties are required at ${propertiesFile.absolutePath}"
+            )
         }
         val properties = Properties().apply { propertiesFile.inputStream().use(::load) }
         val storeFile = if (isGithubAction) File("/tmp/xed.keystore") else properties.getProperty("storeFile")?.let(::File)
-        require(
+        if (!(
             !properties.getProperty("keyAlias").isNullOrBlank() &&
                 !properties.getProperty("keyPassword").isNullOrBlank() &&
                 !properties.getProperty("storePassword").isNullOrBlank() && storeFile?.isFile == true
-        ) {
-            "Release signing properties must include keyAlias, keyPassword, storePassword, and an existing keystore"
+        )) {
+            throw GradleException(
+                "Release signing properties must include keyAlias, keyPassword, storePassword, and an existing keystore"
+            )
+        }
         }
     }
 }
