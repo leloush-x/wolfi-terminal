@@ -148,7 +148,7 @@ object RootfsExtractor {
                     dest.parentFile?.mkdirs()
                     deleteIfExists(dest)
                     val source = File(target, linkName.removePrefix("./").trimStart('/'))
-                    hardlink(source, dest)
+                    if (isInside(root, source)) hardlink(source, dest)
                     skip(input, size)
                 }
                 TYPE_CHAR_DEVICE, TYPE_BLOCK_DEVICE, TYPE_FIFO -> skip(input, size)

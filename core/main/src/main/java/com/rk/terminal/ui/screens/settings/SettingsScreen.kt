@@ -8,16 +8,24 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.core.net.toUri
 import androidx.navigation.NavController
 import com.rk.components.compose.preferences.base.PreferenceGroup
@@ -82,14 +90,15 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    var searchQuery by remember { mutableStateOf("") }
+    val query = searchQuery.trim()
+    fun matches(vararg terms: String) = query.isBlank() || terms.any { it.contains(query, ignoreCase = true) }
     var selectedWorkingMode by remember { mutableIntStateOf(Settings.working_Mode) }
     var selectedInputMode by remember { mutableIntStateOf(Settings.input_mode) }
     var selectedExecMode by remember { mutableStateOf(Rootfs.execMode.value) }
-    var voiceEnabled by remember { mutableStateOf(SettingsRepository.isVoiceEnabled()) }
     var voiceKeyboardMode by remember { mutableIntStateOf(SettingsRepository.getKeyboardInputMode()) }
     var voicePreview by remember { mutableStateOf(SettingsRepository.isVoicePreview()) }
     var voiceTrailingSpace by remember { mutableStateOf(SettingsRepository.isVoiceTrailingSpace()) }
-    var voiceMicVisible by remember { mutableStateOf(SettingsRepository.isVoiceMicButtonVisible()) }
     var voiceLanguage by remember { mutableStateOf(SettingsRepository.getVoiceLanguage()) }
     var keepScreenOn by remember { mutableStateOf(SettingsRepository.isKeepScreenOn()) }
     var wakeLock by remember { mutableStateOf(SettingsRepository.isWakeLock()) }
@@ -144,9 +153,38 @@ fun SettingsScreen(
     PreferenceLayout(
         label = stringResource(strings.settings),
         modifier = modifier,
-        onBack = { navController.popBackStack() }
+        actions = {
+            IconButton(onClick = {
+                searchQuery = if (searchQuery.isBlank()) " " else ""
+            }) {
+                Icon(Icons.Filled.Search, contentDescription = "Search settings")
+            }
+        },
+        onBack = { navController.popBackStack() },
+        bottomBar = {
+            if (searchQuery.isNotBlank()) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                    singleLine = true,
+                    placeholder = { Text("Search settings") },
+                    label = { Text("Filter settings") },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = "Search settings") },
+                    trailingIcon = {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Filled.Close, contentDescription = "Clear search")
+                        }
+                    }
+                )
+                Spacer(Modifier.height(12.dp))
+            }
+        }
     ) {
-        PreferenceGroup(heading = stringResource(strings.default_working_mode)) {
+        SettingsSection(stringResource(strings.default_working_mode), expanded = query.isNotBlank()) {
+            if (matches("default", "working mode", "distro", "alpine", "wolfi", "debian", "void", "android", "session")) {
             Distro.entries.forEach { distro ->
                 WorkingModeOption(
                     title = distro.displayName,
@@ -182,9 +220,11 @@ fun SettingsScreen(
                     CustomSessions.setDefault(session.id)
                 }
             }
+            }
         }
 
-        PreferenceGroup(heading = "Execution Mode") {
+        SettingsSection("Execution Mode", expanded = query.isNotBlank()) {
+            if (matches("execution", "chroot", "proot", "mode")) {
             ExecModeOption("Chroot", "Requires root, faster, real bind mounts", ExecMode.CHROOT, selectedExecMode) {
                 selectedExecMode = it
                 Rootfs.setExecMode(it)
@@ -209,9 +249,11 @@ fun SettingsScreen(
                 selectedExecMode = it
                 Rootfs.setExecMode(it)
             }
+            }
         }
 
-        PreferenceGroup(heading = "Root access (Shevery / Shizuku)") {
+        SettingsSection("Root access (Shevery / Shizuku)", expanded = query.isNotBlank()) {
+            if (matches("root", "shevery", "shizuku", "permission", "elevated")) {
             val mgrInstalled = com.rk.terminal.root.SheveryManager.isManagerInstalled()
             val granted = com.rk.terminal.root.SheveryManager.permissionGranted.value
             val fullRoot = com.rk.terminal.root.SheveryManager.hasFullRootAccess
@@ -260,9 +302,11 @@ fun SettingsScreen(
                 default = Settings.auto_rish,
                 sideEffect = { Settings.auto_rish = it }
             )
+            }
         }
 
-        PreferenceGroup(heading = stringResource(strings.screen_and_power)) {
+        SettingsSection(stringResource(strings.screen_and_power), expanded = query.isNotBlank()) {
+            if (matches("screen", "power", "wake", "lock")) {
             SettingsToggle(
                 label = stringResource(strings.keep_screen_on),
                 description = stringResource(strings.keep_screen_on_desc),
@@ -283,19 +327,47 @@ fun SettingsScreen(
                     SettingsRepository.setWakeLock(it)
                 }
             )
-        }
-
-        PreferenceGroup(heading = stringResource(strings.distro_updates)) {
-            Distro.entries.filter { !it.isBundled }.forEach { distro ->
-                DistroUpdateSection(distro = distro, onDownload = { pendingInstall = it })
             }
         }
 
-        GitHubSettingsSection(navController = navController, mainActivity = mainActivity)
+        SettingsSection(stringResource(strings.distro_updates), expanded = query.isNotBlank()) {
+            if (matches("distro", "update", "release", "version", "download")) {
+            Distro.entries.filter { !it.isBundled }.forEach { distro ->
+                DistroUpdateSection(distro = distro, onDownload = { pendingInstall = it })
+            }
+            }
+        }
 
-        SftpSettingsSection(mainActivity = mainActivity)
+        if (matches("github", "repository", "token", "account")) {
+            SettingsSection("GitHub", expanded = query.isNotBlank()) {
+                GitHubSettingsSection(navController = navController, mainActivity = mainActivity)
+            }
+        }
 
-        PreferenceGroup(heading = "Login shell") {
+        if (query.isBlank() || matches("customization", "theme", "background", "font", "color", "appearance")) {
+            SettingsSection(stringResource(strings.customizations), expanded = query.isNotBlank()) {
+                SettingsCard(
+                    title = { Text(stringResource(strings.customizations)) },
+                    onClick = { navController.navigate(MainActivityRoutes.Customization.route) },
+                    endWidget = {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                            contentDescription = "Open customizations",
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    }
+                )
+            }
+        }
+
+        if (matches("sftp", "ssh", "file transfer", "server")) {
+            SettingsSection("SFTP", expanded = query.isNotBlank()) {
+                SftpSettingsSection(mainActivity = mainActivity)
+            }
+        }
+
+        SettingsSection("Login shell", expanded = query.isNotBlank()) {
+            if (matches("login", "shell", "bash", "ash", "sh")) {
             fun selectShell(value: String) {
                 selectedLoginShell = value
                 Settings.login_shell = value
@@ -320,9 +392,11 @@ fun SettingsScreen(
                 description = "/bin/ash",
                 selected = selectedLoginShell == "/bin/ash"
             ) { selectShell("/bin/ash") }
+            }
         }
 
-        PreferenceGroup(heading = stringResource(strings.input_mode)) {
+        SettingsSection(stringResource(strings.input_mode), expanded = query.isNotBlank()) {
+            if (matches("input", "keyboard", "password", "text")) {
             InputModeOption(stringResource(strings.input_mode_default), stringResource(strings.input_mode_default_desc), InputMode.DEFAULT, selectedInputMode) {
                 selectedInputMode = it
                 Settings.input_mode = it
@@ -335,20 +409,17 @@ fun SettingsScreen(
                 selectedInputMode = it
                 Settings.input_mode = it
             }
+            }
         }
 
-        PreferenceGroup(heading = stringResource(strings.voice_input)) {
-            SettingsToggle(
-                label = stringResource(strings.voice_enabled),
-                description = stringResource(strings.voice_input_desc),
-                showSwitch = true,
-                default = voiceEnabled,
-                sideEffect = {
-                    voiceEnabled = it
-                    SettingsRepository.setVoiceEnabled(it)
-                }
+        SettingsSection(stringResource(strings.voice_input), expanded = query.isNotBlank()) {
+            if (matches("voice", "speech", "microphone", "mic", "language", "dictation")) {
+            SettingsCard(
+                title = { Text("Voice typing") },
+                description = { Text("Use Android speech recognition from the terminal mic button. Microphone permission is requested only when you tap it.") },
+                onClick = { }
             )
-            if (voiceEnabled) {
+            run {
                 InputModeOption(
                     stringResource(strings.voice_keyboard_classic),
                     stringResource(strings.voice_keyboard_classic_desc),
@@ -387,16 +458,6 @@ fun SettingsScreen(
                         SettingsRepository.setVoiceTrailingSpace(it)
                     }
                 )
-                SettingsToggle(
-                    label = stringResource(strings.voice_mic_button),
-                    description = stringResource(strings.voice_mic_button_desc),
-                    showSwitch = true,
-                    default = voiceMicVisible,
-                    sideEffect = {
-                        voiceMicVisible = it
-                        SettingsRepository.setVoiceMicButtonVisible(it)
-                    }
-                )
                 PreferenceTemplate(
                     title = { Text(stringResource(strings.voice_language)) },
                     description = {
@@ -407,9 +468,11 @@ fun SettingsScreen(
                     }
                 )
             }
+            }
         }
 
-        PreferenceGroup(heading = "Custom Sessions") {
+        SettingsSection("Custom Sessions", expanded = query.isNotBlank()) {
+            if (matches("custom", "session", "shell", "command")) {
             customSessions.forEach { session ->
                 SettingsCard(
                     title = { Text(session.name) },
@@ -438,23 +501,11 @@ fun SettingsScreen(
                     )
                 }
             )
+            }
         }
 
-        PreferenceGroup {
-            SettingsCard(
-                title = { Text(stringResource(strings.customizations)) },
-                onClick = { navController.navigate(MainActivityRoutes.Customization.route) },
-                endWidget = {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-                        contentDescription = null,
-                        modifier = Modifier.padding(16.dp)
-                    )
-                }
-            )
-        }
-
-        PreferenceGroup {
+        SettingsSection("Storage permissions", expanded = query.isNotBlank()) {
+            if (matches("storage", "permission", "files", "access")) {
             SettingsToggle(
                 label = stringResource(strings.all_file_access),
                 description = stringResource(strings.all_file_access_desc),
@@ -473,6 +524,7 @@ fun SettingsScreen(
                     }
                 }
             )
+            }
         }
     }
 }
@@ -539,6 +591,29 @@ private fun DistroUpdateSection(distro: Distro, onDownload: (Distro) -> Unit) {
             onClick = { onDownload(distro) }
         )
     }
+}
+
+@Composable
+private fun SettingsSection(
+    title: String,
+    expanded: Boolean = false,
+    content: @Composable () -> Unit
+) {
+    var open by remember(title) { mutableStateOf(expanded) }
+    LaunchedEffect(expanded) { if (expanded) open = true }
+    PreferenceGroup(heading = title) {
+        TextButton(
+            onClick = { open = !open },
+            modifier = Modifier.fillMaxWidth().semantics {
+                contentDescription = "$title, ${if (open) "expanded" else "collapsed"}"
+            }
+        ) {
+            Text(title, modifier = Modifier.weight(1f))
+            Icon(Icons.Filled.ExpandMore, contentDescription = null)
+        }
+        if (open) content()
+    }
+    Spacer(Modifier.height(8.dp))
 }
 
 @StringRes

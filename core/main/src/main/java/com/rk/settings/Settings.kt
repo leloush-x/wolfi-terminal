@@ -3,6 +3,7 @@ package com.rk.settings
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
+import java.util.concurrent.ConcurrentHashMap
 import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
 import com.rk.libcommons.application
@@ -219,11 +220,11 @@ object Settings {
 object Preference {
     private var sharedPreferences: SharedPreferences = application!!.getSharedPreferences("Settings", Context.MODE_PRIVATE)
 
-    private val stringCache = hashMapOf<String, String?>()
-    private val boolCache = hashMapOf<String, Boolean>()
-    private val intCache = hashMapOf<String, Int>()
-    private val longCache = hashMapOf<String, Long>()
-    private val floatCache = hashMapOf<String, Float>()
+    private val stringCache = ConcurrentHashMap<String, String>()
+    private val boolCache = ConcurrentHashMap<String, Boolean>()
+    private val intCache = ConcurrentHashMap<String, Int>()
+    private val longCache = ConcurrentHashMap<String, Long>()
+    private val floatCache = ConcurrentHashMap<String, Float>()
 
     @SuppressLint("ApplySharedPref")
     fun clearData(){
@@ -294,7 +295,7 @@ object Preference {
         return default
     }
     fun setString(key: String, value: String?) {
-        stringCache[key] = value
+        if (value == null) stringCache.remove(key) else stringCache[key] = value
         runCatching {
             val editor = sharedPreferences.edit()
             editor.putString(key, value)

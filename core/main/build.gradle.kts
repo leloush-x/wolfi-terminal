@@ -5,14 +5,15 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-val gitCommitHash: Provider<String> =
-    providers.exec { commandLine("git", "rev-parse", "--short=8", "HEAD") }.standardOutput.asText.map { it.trim() }
+fun gitValue(vararg args: String): String = runCatching {
+    providers.exec { commandLine("git", *args) }.standardOutput.asText.get().trim()
+}.getOrDefault("unknown").ifBlank { "unknown" }
 
-val fullGitCommitHash: Provider<String> =
-    providers.exec { commandLine("git", "rev-parse", "HEAD") }.standardOutput.asText.map { it.trim() }
+val gitCommitHash = gitValue("rev-parse", "--short=8", "HEAD")
 
-val gitCommitDate: Provider<String> =
-    providers.exec { commandLine("git", "show", "-s", "--format=%cI", "HEAD") }.standardOutput.asText.map { it.trim() }
+val fullGitCommitHash = gitValue("rev-parse", "HEAD")
+
+val gitCommitDate = gitValue("show", "-s", "--format=%cI", "HEAD")
 
 
 
@@ -29,20 +30,20 @@ android {
 
     buildTypes {
         release {
-            buildConfigField("String", "GIT_COMMIT_HASH", "\"${fullGitCommitHash.get()}\"")
-            buildConfigField("String", "GIT_SHORT_COMMIT_HASH", "\"${gitCommitHash.get()}\"")
-            buildConfigField("String", "GIT_COMMIT_DATE", "\"${gitCommitDate.get()}\"")
+            buildConfigField("String", "GIT_COMMIT_HASH", "\"$fullGitCommitHash\"")
+            buildConfigField("String", "GIT_SHORT_COMMIT_HASH", "\"$gitCommitHash\"")
+            buildConfigField("String", "GIT_COMMIT_DATE", "\"$gitCommitDate\"")
 
-            isMinifyEnabled = false
-            isShrinkResources = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
         }
         debug{
-            buildConfigField("String", "GIT_COMMIT_HASH", "\"${fullGitCommitHash.get()}\"")
-            buildConfigField("String", "GIT_SHORT_COMMIT_HASH", "\"${gitCommitHash.get()}\"")
-            buildConfigField("String", "GIT_COMMIT_DATE", "\"${gitCommitDate.get()}\"")
+            buildConfigField("String", "GIT_COMMIT_HASH", "\"$fullGitCommitHash\"")
+            buildConfigField("String", "GIT_SHORT_COMMIT_HASH", "\"$gitCommitHash\"")
+            buildConfigField("String", "GIT_COMMIT_DATE", "\"$gitCommitDate\"")
         }
     }
 

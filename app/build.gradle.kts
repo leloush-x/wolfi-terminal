@@ -27,47 +27,22 @@ android {
             }
             
             val propertiesFile = File(propertiesFilePath)
-            if (propertiesFile.exists() && propertiesFile.length() > 0) {
-                runCatching {
-                    val properties = Properties()
-                    properties.load(propertiesFile.inputStream())
-                    val alias = properties["keyAlias"] as String?
-                    val keyPass = properties["keyPassword"] as String?
-                    val storePass = properties["storePassword"] as String?
-                    
-                    if (!alias.isNullOrBlank() && !keyPass.isNullOrBlank() && !storePass.isNullOrBlank()) {
-                        keyAlias = alias
-                        keyPassword = keyPass
-                        storeFile = if (isGITHUB_ACTION) {
-                            File("/tmp/xed.keystore")
-                        } else {
-                            (properties["storeFile"] as String?)?.let { File(it) }
-                        }
-                        storePassword = storePass
-                    } else {
-                        // Fallback to testkey
-                        storeFile = file(layout.buildDirectory.dir("../testkey.keystore"))
-                        storePassword = "testkey"
-                        keyAlias = "testkey"
-                        keyPassword = "testkey"
-                        println("Signing properties are missing required fields. Using testkey fallback.")
-                    }
-                }.onFailure {
-                    // Fallback to testkey
-                    storeFile = file(layout.buildDirectory.dir("../testkey.keystore"))
-                    storePassword = "testkey"
-                    keyAlias = "testkey"
-                    keyPassword = "testkey"
-                    println("Failed to load signing properties. Using testkey fallback.")
-                }
-            } else {
-                // Fallback to testkey
-                storeFile = file(layout.buildDirectory.dir("../testkey.keystore"))
-                storePassword = "testkey"
-                keyAlias = "testkey"
-                keyPassword = "testkey"
-                println("Signing properties file not found or empty. Using testkey fallback.")
+            require(propertiesFile.isFile && propertiesFile.length() > 0) {
+                "Release signing properties are required at $propertiesFilePath"
             }
+            val properties = Properties().apply { propertiesFile.inputStream().use(::load) }
+            val alias = properties.getProperty("keyAlias")
+            val keyPass = properties.getProperty("keyPassword")
+            val storePass = properties.getProperty("storePassword")
+            val configuredStore = if (isGITHUB_ACTION) File("/tmp/xed.keystore")
+                else properties.getProperty("storeFile")?.let(::File)
+            require(!alias.isNullOrBlank() && !keyPass.isNullOrBlank() && !storePass.isNullOrBlank() && configuredStore?.isFile == true) {
+                "Release signing properties must include keyAlias, keyPassword, storePassword, and an existing keystore"
+            }
+            keyAlias = alias!!
+            keyPassword = keyPass!!
+            storePassword = storePass!!
+            storeFile = configuredStore!!
         }
         getByName("debug") {
             storeFile = file(layout.buildDirectory.dir("../testkey.keystore"))
@@ -80,9 +55,9 @@ android {
     
     buildTypes {
         release{
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             isCrunchPngs = false
-            isShrinkResources = false
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )

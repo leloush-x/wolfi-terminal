@@ -51,7 +51,7 @@ fun VoiceMicControl(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    if (!SettingsRepository.isVoiceEnabled() || !SettingsRepository.isVoiceMicButtonVisible()) {
+    if (!SettingsRepository.isVoiceEnabled()) {
         return
     }
 

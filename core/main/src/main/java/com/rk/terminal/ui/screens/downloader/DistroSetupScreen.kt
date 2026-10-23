@@ -85,6 +85,7 @@ fun DistroSetupScreen(
                     progress = 0f
                     statusText = installingStr
                 }
+                downloadState.releaseTag = null
                 val archive = context.filesDir.child(distro.tarName)
                 val partFile = File(context.filesDir, "${distro.tarName}.part")
 
@@ -99,17 +100,15 @@ fun DistroSetupScreen(
                         progress = fraction
                         statusText = "Downloading $displayName $tag… ${(fraction * 100).toInt()}%"
                     }
-                    Settings.setRootfsVersion(distro, tag)
+                    downloadState.releaseTag = tag
                 }
 
                 if (cancelled) throw InterruptedException("cancelled")
-                if (archive.exists()) archive.delete()
-                if (!partFile.renameTo(archive)) {
-                    partFile.copyTo(archive, overwrite = true)
-                }
-
                 withContext(Dispatchers.Main) { statusText = "Unpacking $displayName…" }
-                unpack(context, distro, archive)
+                unpack(context, distro, partFile)
+                if (archive.exists()) archive.delete()
+                if (!partFile.renameTo(archive)) partFile.copyTo(archive, overwrite = true)
+                downloadState.releaseTag?.let { Settings.setRootfsVersion(distro, it) }
 
                 withContext(Dispatchers.Main) {
                     progress = 1f
@@ -127,7 +126,9 @@ fun DistroSetupScreen(
                     toast(setupFailedStr.format(e.message))
                 }
             } finally {
-                runCatching { File(context.filesDir, "${distro.tarName}.part").delete() }
+                if (!cancelled && error == null) {
+                    runCatching { File(context.filesDir, "${distro.tarName}.part").delete() }
+                }
             }
         }
     }
@@ -211,13 +212,17 @@ private fun downloadArchive(
     }
     state.connection = conn
     try {
-        if (conn.responseCode != HttpURLConnection.HTTP_OK) {
+        val offset = partFile.takeIf { it.exists() }?.length() ?: 0L
+        if (offset > 0) conn.setRequestProperty("Range", "bytes=$offset-")
+        val response = conn.responseCode
+        val append = offset > 0 && response == HttpURLConnection.HTTP_PARTIAL
+        if (response != HttpURLConnection.HTTP_OK && !append) {
             throw RuntimeException("Download failed: HTTP ${conn.responseCode}")
         }
-        val total = conn.contentLengthLong.takeIf { it > 0 }
-        var downloaded = 0L
+        val total = (conn.contentLengthLong.takeIf { it > 0 }?.let { it + if (append) offset else 0L })
+        var downloaded = offset.takeIf { append } ?: 0L
         conn.inputStream.use { input ->
-            FileOutputStream(partFile).use { output ->
+            FileOutputStream(partFile, append).use { output ->
                 val buffer = ByteArray(64 * 1024)
                 while (true) {
                     val read = input.read(buffer)
@@ -251,11 +256,14 @@ private fun unpack(context: android.content.Context, distro: Distro, archive: Fi
         target.listFiles()?.forEach {
             if (it.name != "root" && it.name != "tmp") it.deleteRecursively()
         }
-        toast("${distro.displayName} will be unpacked on the first session instead")
+        throw e
     }
 }
 
 private class DownloadState {
     @Volatile
     var connection: HttpURLConnection? = null
+
+    @Volatile
+    var releaseTag: String? = null
 }

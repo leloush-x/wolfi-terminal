@@ -1,3 +1,9 @@
+# Keep runtime entry points and diagnostic names used by Android and reflection.
+-keep class com.rk.terminal.App { *; }
+-keep class com.rk.crashhandler.CrashHandler { *; }
+-keep class rikka.shizuku.** { *; }
+-keep class moe.shizuku.** { *; }
+-keepattributes SourceFile,LineNumberTable
 -dontwarn java.lang.management.ManagementFactory
 -dontwarn javax.management.InstanceAlreadyExistsException
 -dontwarn javax.management.InstanceNotFoundException
