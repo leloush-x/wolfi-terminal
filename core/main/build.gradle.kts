@@ -35,7 +35,6 @@ android {
             buildConfigField("String", "GIT_COMMIT_DATE", "\"$gitCommitDate\"")
 
             isMinifyEnabled = true
-            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
