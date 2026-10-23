@@ -56,9 +56,12 @@ android {
     
     buildTypes {
         release{
-            isMinifyEnabled = true
+            // Keep release code/resources intact until the R8 configuration has
+            // a release-device smoke test. v1.3.1 shrank the DEX payload from
+            // ~50 MB to ~1.2 MB; v1.3.1 is reported to crash on launch.
+            isMinifyEnabled = false
             isCrunchPngs = false
-            isShrinkResources = true
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
@@ -74,11 +77,11 @@ android {
 
     
     defaultConfig {
-        applicationId = "com.wolfi.terminal.secure"
+        applicationId = "com.wolfi.terminal"
         minSdk = 26
         targetSdk = 37
-        versionCode = 11
-        versionName = "1.3.1"
+        versionCode = 12
+        versionName = "1.3.2"
         vectorDrawables {
             useSupportLibrary = true
         }

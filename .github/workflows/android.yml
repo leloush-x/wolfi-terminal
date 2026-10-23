@@ -65,10 +65,10 @@ jobs:
           if-no-files-found: ignore
 
   build:
-    name: Build APK
+    name: Build debug and release APKs
     runs-on: ubuntu-latest
-    # Every branch gets a compiled APK, so a push can be verified before it
-    # is merged. The release job below only signs and publishes from main.
+    # Every branch gets debug and test-key release APKs so release-only
+    # configuration can be checked before changes are merged.
     steps:
       - uses: actions/checkout@v4
 
@@ -85,14 +85,36 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build debug APK
-        run: ./gradlew assembleDebug --parallel
+      - name: Prepare test signing key for release verification
+        run: |
+          cp app/testkey.keystore /tmp/xed.keystore
+          cat > /tmp/signing.properties <<'EOF'
+          keyAlias=testkey
+          keyPassword=testkey
+          storePassword=testkey
+          EOF
 
-      - name: Upload debug APK
+      - name: Build debug and release APKs
+        run: ./gradlew assembleDebug assembleRelease --parallel
+
+      - name: Verify release APK signature uses the test key
+        run: |
+          APK="$(find app/build/outputs/apk/release -name '*.apk' -print -quit)"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
+          EXPECTED="$(keytool -exportcert -alias testkey -keystore app/testkey.keystore -storepass testkey | openssl dgst -sha256 -r | awk '{print tolower($1)}')"
+          CERTS="$("$APKSIGNER" verify --print-certs "$APK" 2>&1)"
+          printf '%s\n' "$CERTS"
+          ACTUAL="$(printf '%s\n' "$CERTS" | awk -F ': ' 'tolower($0) ~ /certificate sha-256 digest:/ {print tolower($NF); exit}')"
+          printf 'Expected test-key SHA-256: %s\nAPK signer SHA-256: %s\n' "$EXPECTED" "$ACTUAL"
+          test -n "$APK" && test -n "$EXPECTED" && test "$ACTUAL" = "$EXPECTED"
+
+      - name: Upload debug and release APKs
         uses: actions/upload-artifact@v4
         with:
-          name: debug-apk
-          path: 'app/build/outputs/apk/debug/*.apk'
+          name: verified-apks
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk
           if-no-files-found: error
 
   build-release:
@@ -116,21 +138,31 @@ jobs:
       - name: Accept Android SDK licenses
         run: yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses || true
 
-      - name: Decode and create xed.keystore
+      - name: Prepare test signing key
         run: |
-          test -n "${{ secrets.KEYSTORE }}" || { echo 'KEYSTORE secret is required for release builds' >&2; exit 1; }
-          echo "${{ secrets.KEYSTORE }}" | base64 -d > /tmp/xed.keystore
-
-      - name: Decode and create signing.properties
-        run: |
-          test -n "${{ secrets.PROP }}" || { echo 'PROP secret is required for release builds' >&2; exit 1; }
-          echo "${{ secrets.PROP }}" | base64 -d > /tmp/signing.properties
+          cp app/testkey.keystore /tmp/xed.keystore
+          cat > /tmp/signing.properties <<'EOF'
+          keyAlias=testkey
+          keyPassword=testkey
+          storePassword=testkey
+          EOF
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
       - name: Build release APK
         run: ./gradlew assembleRelease --parallel
+
+      - name: Verify release APK signature uses the test key
+        run: |
+          APK="$(find app/build/outputs/apk/release -name '*.apk' -print -quit)"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
+          EXPECTED="$(keytool -exportcert -alias testkey -keystore app/testkey.keystore -storepass testkey | openssl dgst -sha256 -r | awk '{print tolower($1)}')"
+          CERTS="$("$APKSIGNER" verify --print-certs "$APK" 2>&1)"
+          printf '%s\n' "$CERTS"
+          ACTUAL="$(printf '%s\n' "$CERTS" | awk -F ': ' 'tolower($0) ~ /certificate sha-256 digest:/ {print tolower($NF); exit}')"
+          printf 'Expected test-key SHA-256: %s\nAPK signer SHA-256: %s\n' "$EXPECTED" "$ACTUAL"
+          test -n "$APK" && test -n "$EXPECTED" && test "$ACTUAL" = "$EXPECTED"
 
       - name: Rename APK
         env:
@@ -139,7 +171,11 @@ jobs:
           case "$RELEASE_TAG" in
             ''|*[!A-Za-z0-9._-]*) echo 'Invalid release tag for asset filename' >&2; exit 1 ;;
           esac
-          mv app/build/outputs/apk/release/*.apk "app/wolfi-terminal-${RELEASE_TAG}.apk"
+          APK="app/wolfi-terminal-${RELEASE_TAG}.apk"
+          mv app/build/outputs/apk/release/*.apk "$APK"
+          if [ "$RELEASE_TAG" != latest ]; then
+            cp "$APK" app/wolfi-terminal-latest.apk
+          fi
 
       - name: Delete xed.keystore and signing.properties
         run: rm -f /tmp/xed.keystore /tmp/signing.properties
@@ -176,6 +212,10 @@ jobs:
           APK="app/wolfi-terminal-${RELEASE_TAG}.apk"
           test -s "$APK"
           sha256sum "$APK" > "$APK.sha256"
+          if [ "$RELEASE_TAG" != latest ]; then
+            cp "$APK" app/wolfi-terminal-latest.apk
+          fi
+          sha256sum app/wolfi-terminal-latest.apk > app/wolfi-terminal-latest.apk.sha256
           python3 - "$APK" <<'PY'
           import datetime, hashlib, json, os, pathlib, re, subprocess, sys
           apk = pathlib.Path(sys.argv[1])
@@ -219,10 +259,11 @@ jobs:
             | File | Use for |
             |------|---------|
             | `wolfi-terminal-${{ github.event.inputs.tag || 'latest' }}.apk` | New install |
+            | `wolfi-terminal-latest.apk` | Stable download link |
 
-            This release uses a new package name and signing key so it can be installed alongside the older test-key-signed app. Existing app data is not migrated.
+            This release returns to the original `com.wolfi.terminal` package and test key. It can update matching installs; the previous `.secure` package remains separate, with no data migration.
 
-            Direct link: https://github.com/leloush-x/wolfi-terminal/releases/download/${{ github.event.inputs.tag || 'latest' }}/wolfi-terminal-${{ github.event.inputs.tag || 'latest' }}.apk
+            Direct link: https://github.com/leloush-x/wolfi-terminal/releases/latest/download/wolfi-terminal-latest.apk
           files: |
             app/wolfi-terminal-*.apk
             app/wolfi-terminal-*.apk.sha256

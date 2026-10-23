@@ -34,7 +34,7 @@ android {
             buildConfigField("String", "GIT_SHORT_COMMIT_HASH", "\"$gitCommitHash\"")
             buildConfigField("String", "GIT_COMMIT_DATE", "\"$gitCommitDate\"")
 
-            isMinifyEnabled = true
+            isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
