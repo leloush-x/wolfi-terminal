@@ -104,7 +104,7 @@ jobs:
           EXPECTED="$(keytool -exportcert -alias testkey -keystore app/testkey.keystore -storepass testkey | openssl dgst -sha256 -r | awk '{print tolower($1)}')"
           CERTS="$("$APKSIGNER" verify --print-certs "$APK" 2>&1)"
           printf '%s\n' "$CERTS"
-          ACTUAL="$(printf '%s\n' "$CERTS" | awk -F ': ' 'tolower($1) ~ /certificate sha-256 digest/ {gsub(/[^[:xdigit:]]/, "", $2); print tolower($2); exit}')"
+          ACTUAL="$(printf '%s\n' "$CERTS" | awk -F ': ' 'tolower($0) ~ /certificate sha-256 digest:/ {print tolower($NF); exit}')"
           printf 'Expected test-key SHA-256: %s\nAPK signer SHA-256: %s\n' "$EXPECTED" "$ACTUAL"
           test -n "$APK" && test -n "$EXPECTED" && test "$ACTUAL" = "$EXPECTED"
 
@@ -160,7 +160,7 @@ jobs:
           EXPECTED="$(keytool -exportcert -alias testkey -keystore app/testkey.keystore -storepass testkey | openssl dgst -sha256 -r | awk '{print tolower($1)}')"
           CERTS="$("$APKSIGNER" verify --print-certs "$APK" 2>&1)"
           printf '%s\n' "$CERTS"
-          ACTUAL="$(printf '%s\n' "$CERTS" | awk -F ': ' 'tolower($1) ~ /certificate sha-256 digest/ {gsub(/[^[:xdigit:]]/, "", $2); print tolower($2); exit}')"
+          ACTUAL="$(printf '%s\n' "$CERTS" | awk -F ': ' 'tolower($0) ~ /certificate sha-256 digest:/ {print tolower($NF); exit}')"
           printf 'Expected test-key SHA-256: %s\nAPK signer SHA-256: %s\n' "$EXPECTED" "$ACTUAL"
           test -n "$APK" && test -n "$EXPECTED" && test "$ACTUAL" = "$EXPECTED"
 
