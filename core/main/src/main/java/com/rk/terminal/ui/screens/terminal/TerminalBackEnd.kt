@@ -2,7 +2,8 @@ package com.rk.terminal.ui.screens.terminal
 
 import android.content.res.Configuration
 import android.content.res.Resources
-import android.media.MediaPlayer
+import android.media.AudioAttributes
+import android.media.SoundPool
 import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -22,7 +23,6 @@ import com.termux.view.TerminalViewClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.io.FileOutputStream
 
 class TerminalBackEnd(
@@ -30,6 +30,20 @@ class TerminalBackEnd(
     private val activity: MainActivity,
     private val coroutineScope: CoroutineScope = activity.lifecycleScope
 ) : TerminalViewClient, TerminalSessionClient {
+
+    private val soundPool by lazy {
+        SoundPool.Builder()
+            .setMaxStreams(2)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            .build()
+    }
+    @Volatile private var bellSoundId = 0
+    @Volatile private var bellLoading = false
 
     private val terminalViewModel by lazy { ViewModelProvider(activity)[TerminalViewModel::class.java] }
 
@@ -53,24 +67,26 @@ class TerminalBackEnd(
 
     override fun onBell(session: TerminalSession) {
         if (!Settings.bell) return
-        
-        coroutineScope.launch {
-            val bellFile = activity.cacheDir.child("bell.oga")
-            if (!bellFile.exists()) {
-                withContext(Dispatchers.IO) {
-                    activity.assets.open("bell.oga").use { input ->
-                        FileOutputStream(bellFile).use { output ->
-                            input.copyTo(output)
-                        }
-                    }
+        val loaded = bellSoundId
+        if (loaded != 0) {
+            soundPool.play(loaded, 1f, 1f, 1, 0, 1f)
+        } else if (!bellLoading) {
+            bellLoading = true
+            soundPool.setOnLoadCompleteListener { _, sampleId, status ->
+                bellLoading = false
+                if (status == 0) {
+                    bellSoundId = sampleId
+                    soundPool.play(sampleId, 1f, 1f, 1, 0, 1f)
                 }
             }
-
-            MediaPlayer().apply {
-                setOnCompletionListener { it?.release() }
-                setDataSource(bellFile.absolutePath)
-                prepare()
-                start()
+            coroutineScope.launch(Dispatchers.IO) {
+                val bellFile = activity.cacheDir.child("bell.oga")
+                if (!bellFile.exists()) {
+                    activity.assets.open("bell.oga").use { input ->
+                        FileOutputStream(bellFile).use { output -> input.copyTo(output) }
+                    }
+                }
+                soundPool.load(bellFile.absolutePath, 1)
             }
         }
     }
@@ -96,10 +112,18 @@ class TerminalBackEnd(
     override fun onScale(scale: Float): Float {
         val fontScale = scale.coerceIn(6f, 40f)
         terminal.setTextSize(fontScale.toInt())
-        Settings.terminal_font_size = fontScale.toInt()
-        com.rk.settings.SettingsRepository.setTerminalFontSizeSp(fontScale)
+        pendingFontScale = fontScale
+        persistFontScale?.let(mainHandler::removeCallbacks)
+        persistFontScale = Runnable {
+            Settings.terminal_font_size = fontScale.toInt()
+            com.rk.settings.SettingsRepository.setTerminalFontSizeSp(fontScale)
+        }.also { mainHandler.postDelayed(it, 350L) }
         return fontScale
     }
+
+    @Volatile private var pendingFontScale = 0f
+    @Volatile private var persistFontScale: Runnable? = null
+    private val mainHandler by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
 
     private val isHardwareKeyboardConnected: Boolean
         get() = Resources.getSystem().configuration.keyboard != Configuration.KEYBOARD_NOKEYS

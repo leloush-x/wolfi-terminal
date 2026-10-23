@@ -59,7 +59,7 @@ object SettingsRepository {
         migrateFont(prefs)
         _terminalFontSizeSp.value = prefs.getFloat(KEY_FONT_SIZE_SP, 13f).coerceIn(6f, 40f)
         // Native Android speech recognition is available immediately by default.
-        _voiceEnabled.value = prefs.getBoolean(KEY_VOICE_ENABLED, true)
+        _voiceEnabled.value = true
         _keyboardInputMode.value = prefs.getInt(KEY_KEYBOARD_INPUT_MODE, 0)
         _voicePreview.value = prefs.getBoolean(KEY_VOICE_PREVIEW, true)
         _voiceLanguage.value = prefs.getString(KEY_VOICE_LANGUAGE, "") ?: ""
@@ -94,7 +94,7 @@ object SettingsRepository {
     }
 
     // --- Voice ---
-    fun isVoiceEnabled(): Boolean = _voiceEnabled.value
+    fun isVoiceEnabled(): Boolean = true
     fun setVoiceEnabled(value: Boolean) {
         _voiceEnabled.value = value
         runCatching { prefs()?.edit()?.putBoolean(KEY_VOICE_ENABLED, value)?.apply() }
@@ -124,7 +124,7 @@ object SettingsRepository {
         runCatching { prefs()?.edit()?.putBoolean(KEY_VOICE_TRAILING_SPACE, value)?.apply() }
     }
 
-    fun isVoiceMicButtonVisible(): Boolean = _voiceMicButton.value
+    fun isVoiceMicButtonVisible(): Boolean = true
     fun setVoiceMicButtonVisible(value: Boolean) {
         _voiceMicButton.value = value
         runCatching { prefs()?.edit()?.putBoolean(KEY_VOICE_MIC_BUTTON, value)?.apply() }

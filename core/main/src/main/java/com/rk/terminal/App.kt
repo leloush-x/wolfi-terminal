@@ -37,13 +37,15 @@ class App : Application() {
         CrashHandler.previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler(CrashHandler)
         com.rk.settings.SettingsRepository.init(this)
-        TerminalUtils.init(this)
+        TerminalUtils.init(this, loadTypeface = false)
         SheveryManager.init(this)
 
         val crashLog = File(filesDir, "crash.log")
         if (crashLog.isFile && crashLog.length() > 0L) {
-            android.util.Log.e("CrashHandler", "Previous crash report:\n${runCatching { crashLog.readText() }.getOrDefault("Unable to read crash report")}")
-            crashLog.delete()
+            android.util.Log.e(
+                "CrashHandler",
+                "Previous crash report:\n${runCatching { crashLog.readText() }.getOrDefault("Unable to read crash report")}"
+            )
         }
 
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {

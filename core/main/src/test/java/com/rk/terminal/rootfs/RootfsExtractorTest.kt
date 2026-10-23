@@ -8,6 +8,8 @@ import org.junit.Rule
 import java.io.File
 import java.nio.file.Files
 import java.util.Base64
+import java.io.ByteArrayOutputStream
+import java.util.zip.GZIPOutputStream
 
 /**
  * The extractor is a tar parser, so it is checked against a real GNU tar
@@ -69,6 +71,35 @@ class RootfsExtractorTest {
 
         assertEquals("the home directory was wiped", "mine", File(target, "root/keepme").readText())
         assertEquals("the stale file was not replaced", "hello world\n", File(target, "dir/file.txt").readText())
+    }
+
+    @Test
+    fun `does not create hardlinks whose source escapes the rootfs`() {
+        val outside = File(temp.root, "outside").apply { writeText("keep") }
+        val archive = File(temp.root, "escape.tar.gz")
+        archive.outputStream().use { file ->
+            GZIPOutputStream(file).use { gzip ->
+                val header = ByteArray(512)
+                "escape".toByteArray().copyInto(header, 0)
+                "0000644\u0000".toByteArray().copyInto(header, 100)
+                "0000000\u0000".toByteArray().copyInto(header, 108)
+                "0000000\u0000".toByteArray().copyInto(header, 116)
+                "00000000000\u0000".toByteArray().copyInto(header, 124)
+                "00000000000\u0000".toByteArray().copyInto(header, 136)
+                "ustar\u0000".toByteArray().copyInto(header, 257)
+                "00".toByteArray().copyInto(header, 263)
+                "../outside".toByteArray().copyInto(header, 157)
+                header[156] = '1'.code.toByte()
+                gzip.write(header)
+                gzip.write(ByteArray(1024))
+            }
+        }
+
+        val target = File(temp.root, "rootfs")
+        RootfsExtractor.install(archive, target)
+
+        assertEquals("keep", outside.readText())
+        assertTrue("escaped hardlink was created", !File(target, "escape").exists())
     }
 
     private companion object {

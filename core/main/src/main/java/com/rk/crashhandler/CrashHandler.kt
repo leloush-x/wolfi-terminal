@@ -24,7 +24,7 @@ fun logErrorOrExit(throwable: Throwable, threadName: String = Thread.currentThre
             appendLine("Thread: $threadName")
             appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL}")
             appendLine("Android: ${Build.VERSION.RELEASE} (SDK ${Build.VERSION.SDK_INT})")
-            appendLine("App: ${com.rk.terminal.BuildConfig.VERSION_NAME} (${com.rk.terminal.BuildConfig.VERSION_CODE})")
+            appendLine("Build: ${com.rk.terminal.BuildConfig.GIT_SHORT_COMMIT_HASH}")
             appendLine("Time: ${System.currentTimeMillis()}")
             appendLine(trace)
             appendLine("\n---\n")

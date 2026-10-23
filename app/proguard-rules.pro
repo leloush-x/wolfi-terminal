@@ -230,8 +230,6 @@
 -keepnames class com.rk.terminal.BaseActivity {*;}
 
 -dontwarn sun.security.x509.X509Key
--dontobfuscate
--dontshrink
 -keepattributes *Annotation*
 
 
