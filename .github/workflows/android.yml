@@ -101,8 +101,9 @@ jobs:
         run: |
           APK="$(find app/build/outputs/apk/release -name '*.apk' -print -quit)"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
-          EXPECTED="$(keytool -list -v -keystore app/testkey.keystore -storepass testkey -alias testkey | awk -F ': ' '/SHA256:/{gsub(":", "", $2); print tolower($2); exit}')"
-          ACTUAL="$("$APKSIGNER" verify --print-certs "$APK" | awk '/Signer #1 certificate SHA-256 digest:/{print tolower($NF); exit}')"
+          EXPECTED="$(keytool -exportcert -alias testkey -keystore app/testkey.keystore -storepass testkey | openssl dgst -sha256 -r | awk '{print tolower($1)}')"
+          ACTUAL="$("$APKSIGNER" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
+          printf 'Expected test-key SHA-256: %s\nAPK signer SHA-256: %s\n' "$EXPECTED" "$ACTUAL"
           test -n "$APK" && test -n "$EXPECTED" && test "$ACTUAL" = "$EXPECTED"
 
       - name: Upload debug and release APKs
@@ -154,8 +155,9 @@ jobs:
         run: |
           APK="$(find app/build/outputs/apk/release -name '*.apk' -print -quit)"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -1)"
-          EXPECTED="$(keytool -list -v -keystore app/testkey.keystore -storepass testkey -alias testkey | awk -F ': ' '/SHA256:/{gsub(":", "", $2); print tolower($2); exit}')"
-          ACTUAL="$("$APKSIGNER" verify --print-certs "$APK" | awk '/Signer #1 certificate SHA-256 digest:/{print tolower($NF); exit}')"
+          EXPECTED="$(keytool -exportcert -alias testkey -keystore app/testkey.keystore -storepass testkey | openssl dgst -sha256 -r | awk '{print tolower($1)}')"
+          ACTUAL="$("$APKSIGNER" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | tr -d ':[:space:]' | tr '[:upper:]' '[:lower:]')"
+          printf 'Expected test-key SHA-256: %s\nAPK signer SHA-256: %s\n' "$EXPECTED" "$ACTUAL"
           test -n "$APK" && test -n "$EXPECTED" && test "$ACTUAL" = "$EXPECTED"
 
       - name: Rename APK
