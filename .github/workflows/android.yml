@@ -133,7 +133,13 @@ jobs:
         run: ./gradlew assembleRelease --parallel
 
       - name: Rename APK
-        run: mv app/build/outputs/apk/release/*.apk app/wolfi-terminal-latest.apk
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.tag || 'latest' }}
+        run: |
+          case "$RELEASE_TAG" in
+            ''|*[!A-Za-z0-9._-]*) echo 'Invalid release tag for asset filename' >&2; exit 1 ;;
+          esac
+          mv app/build/outputs/apk/release/*.apk "app/wolfi-terminal-${RELEASE_TAG}.apk"
 
       - name: Delete xed.keystore and signing.properties
         run: rm -f /tmp/xed.keystore /tmp/signing.properties
@@ -142,7 +148,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          path: app/wolfi-terminal-latest.apk
+          path: 'app/wolfi-terminal-*.apk'
           if-no-files-found: error
 
   publish:
@@ -163,11 +169,33 @@ jobs:
         with:
           name: release-apk
           path: app
+      - name: Verify APK and write release metadata
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.tag || 'latest' }}
+        run: |
+          APK="app/wolfi-terminal-${RELEASE_TAG}.apk"
+          test -s "$APK"
+          sha256sum "$APK" > "$APK.sha256"
+          python3 - "$APK" <<'PY'
+          import datetime, hashlib, json, pathlib, re, subprocess, sys
+          apk = pathlib.Path(sys.argv[1])
+          version_text = pathlib.Path('app/build.gradle.kts').read_text()
+          version = re.search(r'versionName\s*=\s*"([^"]+)"', version_text).group(1)
+          manifest = {
+              'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
+              'versionName': version,
+              'tag': __import__('os').environ['RELEASE_TAG'],
+              'apk': apk.name,
+              'sha256': hashlib.sha256(apk.read_bytes()).hexdigest(),
+              'published': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+          }
+          pathlib.Path('app/version.json').write_text(json.dumps(manifest, indent=2) + '\n')
+          PY
 
       - name: Verify APK
-        run: |
-          ls -la app
-          test -s app/wolfi-terminal-latest.apk
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.tag || 'latest' }}
+        run: test -s "app/wolfi-terminal-${RELEASE_TAG}.apk"
 
       - name: Set Commit Hash
         run: echo "COMMIT_HASH=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
@@ -190,9 +218,14 @@ jobs:
 
             | File | Use for |
             |------|---------|
-            | `wolfi-terminal-latest.apk` | Install / update on device |
+            | `wolfi-terminal-${{ github.event.inputs.tag || 'latest' }}.apk` | New install |
 
-            Direct link: https://github.com/leloush-x/wolfi-terminal/releases/latest/download/wolfi-terminal-latest.apk
-          files: app/wolfi-terminal-latest.apk
+            This release uses a new package name and signing key so it can be installed alongside the older test-key-signed app. Existing app data is not migrated.
+
+            Direct link: https://github.com/leloush-x/wolfi-terminal/releases/download/${{ github.event.inputs.tag || 'latest' }}/wolfi-terminal-${{ github.event.inputs.tag || 'latest' }}.apk
+          files: |
+            app/wolfi-terminal-*.apk
+            app/wolfi-terminal-*.apk.sha256
+            app/version.json
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
