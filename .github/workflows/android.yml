@@ -101,7 +101,7 @@ jobs:
     # Deliberately NOT `needs: test` — the two jobs run side by side. The
     # publish job below is the gate, so an APK is built even when tests fail,
     # but nothing is released unless both succeed.
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
 
     steps:
       - uses: actions/checkout@v4
