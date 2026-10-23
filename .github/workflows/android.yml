@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag (default: latest, overwrites the same release page)'
+        description: 'Release tag (for example v1.3.1; latest overwrites the rolling release)'
         required: false
         default: 'latest'
 
@@ -177,14 +177,14 @@ jobs:
           test -s "$APK"
           sha256sum "$APK" > "$APK.sha256"
           python3 - "$APK" <<'PY'
-          import datetime, hashlib, json, pathlib, re, subprocess, sys
+          import datetime, hashlib, json, os, pathlib, re, subprocess, sys
           apk = pathlib.Path(sys.argv[1])
           version_text = pathlib.Path('app/build.gradle.kts').read_text()
           version = re.search(r'versionName\s*=\s*"([^"]+)"', version_text).group(1)
           manifest = {
               'commit': subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip(),
               'versionName': version,
-              'tag': __import__('os').environ['RELEASE_TAG'],
+              'tag': os.environ['RELEASE_TAG'],
               'apk': apk.name,
               'sha256': hashlib.sha256(apk.read_bytes()).hexdigest(),
               'published': datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -206,7 +206,7 @@ jobs:
           tag_name: ${{ github.event.inputs.tag || 'latest' }}
           name: 'Wolfi Terminal latest (${{ env.COMMIT_HASH }})'
           body: |
-            🐺📱 **Wolfi Terminal APK (rolling release)**
+            🐺📱 **Wolfi Terminal ${{ github.event.inputs.tag || 'latest' }}**
 
             Same page, updated file on every release.
 

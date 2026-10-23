@@ -20,7 +20,7 @@ import org.robolectric.annotation.Config
  * [TerminalUtils] is an `object` whose initialisers read
  * `com.rk.settings.Settings`, which reaches the global `application` field and
  * throws if it is null. The field is normally set in App.onCreate, which is
- * deliberately NOT used here (it starts ANRWatchDog and UpdateManager), so the
+ * deliberately NOT used here (it starts the ANR watchdog and startup jobs), so the
  * tests install a plain Application first.
  */
 @RunWith(RobolectricTestRunner::class)

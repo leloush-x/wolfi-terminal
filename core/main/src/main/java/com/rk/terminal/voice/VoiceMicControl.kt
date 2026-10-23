@@ -51,10 +51,6 @@ fun VoiceMicControl(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    if (!SettingsRepository.isVoiceEnabled()) {
-        return
-    }
-
     val state = remember { VoiceState() }
     DisposableEffect(Unit) { onDispose { state.destroy() } }
 

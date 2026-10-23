@@ -112,7 +112,6 @@ class TerminalBackEnd(
     override fun onScale(scale: Float): Float {
         val fontScale = scale.coerceIn(6f, 40f)
         terminal.setTextSize(fontScale.toInt())
-        pendingFontScale = fontScale
         persistFontScale?.let(mainHandler::removeCallbacks)
         persistFontScale = Runnable {
             Settings.terminal_font_size = fontScale.toInt()
@@ -121,7 +120,6 @@ class TerminalBackEnd(
         return fontScale
     }
 
-    @Volatile private var pendingFontScale = 0f
     @Volatile private var persistFontScale: Runnable? = null
     private val mainHandler by lazy { android.os.Handler(android.os.Looper.getMainLooper()) }
 
