@@ -118,19 +118,13 @@ jobs:
 
       - name: Decode and create xed.keystore
         run: |
-          if [ -n "${{ secrets.KEYSTORE }}" ]; then
-            echo "${{ secrets.KEYSTORE }}" | base64 -d > /tmp/xed.keystore
-          else
-            touch /tmp/xed.keystore
-          fi
+          test -n "${{ secrets.KEYSTORE }}" || { echo 'KEYSTORE secret is required for release builds' >&2; exit 1; }
+          echo "${{ secrets.KEYSTORE }}" | base64 -d > /tmp/xed.keystore
 
       - name: Decode and create signing.properties
         run: |
-          if [ -n "${{ secrets.PROP }}" ]; then
-            echo "${{ secrets.PROP }}" | base64 -d > /tmp/signing.properties
-          else
-            touch /tmp/signing.properties
-          fi
+          test -n "${{ secrets.PROP }}" || { echo 'PROP secret is required for release builds' >&2; exit 1; }
+          echo "${{ secrets.PROP }}" | base64 -d > /tmp/signing.properties
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew

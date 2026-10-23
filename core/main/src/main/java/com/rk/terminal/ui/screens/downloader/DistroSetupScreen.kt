@@ -46,6 +46,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 
 /**
  * Installs a distro: copies the bundled asset or downloads the latest
@@ -75,6 +76,16 @@ fun DistroSetupScreen(
     var cancelled by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val downloadState = remember { DownloadState() }
+    val failureMessage = remember(error) {
+        error?.let { raw ->
+            when {
+                raw.contains("HTTP 404") -> "This distro release is unavailable. Try again later."
+                raw.contains("HTTP 5") || raw.contains("timeout", ignoreCase = true) -> "The download server is unavailable. Check your connection and retry."
+                raw.contains("checksum", ignoreCase = true) -> "The downloaded archive did not pass verification. Retry the download."
+                else -> "Could not install $displayName. Check your connection and available storage, then retry."
+            }
+        }
+    }
 
     LaunchedEffect(attempt) {
         if (attempt < 0) return@LaunchedEffect
@@ -85,31 +96,48 @@ fun DistroSetupScreen(
                     progress = 0f
                     statusText = installingStr
                 }
+                downloadState.releaseTag = null
                 val archive = context.filesDir.child(distro.tarName)
                 val partFile = File(context.filesDir, "${distro.tarName}.part")
+                val partTagFile = File(context.filesDir, "${distro.tarName}.part.tag")
 
                 if (distro.isBundled) {
                     withContext(Dispatchers.Main) { statusText = "Copying $displayName…" }
+                    partTagFile.delete()
                     copyBundledAsset(context, distro, partFile)
                 } else {
                     withContext(Dispatchers.Main) { statusText = "Resolving latest $displayName release…" }
                     val (tag, url) = DistroRepo.fetchLatest(distro)
                     withContext(Dispatchers.Main) { statusText = "Downloading $displayName $tag…" }
-                    downloadArchive(url, partFile, downloadState) { fraction ->
-                        progress = fraction
-                        statusText = "Downloading $displayName $tag… ${(fraction * 100).toInt()}%"
+                    if (partFile.exists() && partTagFile.takeIf { it.isFile }?.readText() != tag) {
+                        partFile.delete()
                     }
-                    Settings.setRootfsVersion(distro, tag)
+                    partTagFile.writeText(tag)
+                    downloadArchive(url, partFile, downloadState) { fraction ->
+                        if (System.nanoTime() - downloadState.lastProgressNanos >= 250_000_000L || fraction >= 1f) {
+                            downloadState.lastProgressNanos = System.nanoTime()
+                            progress = fraction
+                            statusText = "Downloading $displayName $tag… ${(fraction * 100).toInt()}%"
+                        }
+                    }
+                    withContext(Dispatchers.Main) { statusText = "Verifying $displayName download…" }
+                    val assetName = DistroRepo.assetNameForAbi(distro)
+                    val expectedChecksum = DistroRepo.fetchChecksum(tag, assetName)
+                    if (sha256(partFile) != expectedChecksum) {
+                        partFile.delete()
+                        partTagFile.delete()
+                        throw IllegalStateException("SHA-256 checksum verification failed")
+                    }
+                    downloadState.releaseTag = tag
                 }
 
                 if (cancelled) throw InterruptedException("cancelled")
-                if (archive.exists()) archive.delete()
-                if (!partFile.renameTo(archive)) {
-                    partFile.copyTo(archive, overwrite = true)
-                }
-
                 withContext(Dispatchers.Main) { statusText = "Unpacking $displayName…" }
-                unpack(context, distro, archive)
+                unpack(context, distro, partFile)
+                if (archive.exists()) archive.delete()
+                if (!partFile.renameTo(archive)) partFile.copyTo(archive, overwrite = true)
+                partTagFile.delete()
+                downloadState.releaseTag?.let { Settings.setRootfsVersion(distro, it) }
 
                 withContext(Dispatchers.Main) {
                     progress = 1f
@@ -123,11 +151,14 @@ fun DistroSetupScreen(
                 if (cancelled) return@withContext
                 withContext(Dispatchers.Main) {
                     error = e.javaClass.simpleName + ": " + e.message
-                    statusText = setupFailedStr.format(e.message)
-                    toast(setupFailedStr.format(e.message))
+                    statusText = failureMessage ?: setupFailedStr
+                    toast(failureMessage ?: setupFailedStr)
                 }
             } finally {
-                runCatching { File(context.filesDir, "${distro.tarName}.part").delete() }
+                if (!cancelled && error == null) {
+                    runCatching { File(context.filesDir, "${distro.tarName}.part").delete() }
+                runCatching { File(context.filesDir, "${distro.tarName}.part.tag").delete() }
+                }
             }
         }
     }
@@ -135,7 +166,7 @@ fun DistroSetupScreen(
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             if (error != null) {
-                Text("Setup Failed: $error", color = MaterialTheme.colorScheme.error)
+                Text(failureMessage ?: setupFailedStr, color = MaterialTheme.colorScheme.error)
                 Spacer(modifier = Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.Center) {
                     OutlinedButton(onClick = {
@@ -196,6 +227,19 @@ private fun copyBundledAsset(context: android.content.Context, distro: Distro, p
     }
 }
 
+private fun sha256(file: File): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    file.inputStream().buffered().use { input ->
+        val buffer = ByteArray(64 * 1024)
+        while (true) {
+            val count = input.read(buffer)
+            if (count < 0) break
+            digest.update(buffer, 0, count)
+        }
+    }
+    return digest.digest().joinToString("") { "%02x".format(it) }
+}
+
 private fun downloadArchive(
     url: String,
     partFile: File,
@@ -211,13 +255,17 @@ private fun downloadArchive(
     }
     state.connection = conn
     try {
-        if (conn.responseCode != HttpURLConnection.HTTP_OK) {
+        val offset = partFile.takeIf { it.exists() }?.length() ?: 0L
+        if (offset > 0) conn.setRequestProperty("Range", "bytes=$offset-")
+        val response = conn.responseCode
+        val append = offset > 0 && response == HttpURLConnection.HTTP_PARTIAL
+        if (response != HttpURLConnection.HTTP_OK && !append) {
             throw RuntimeException("Download failed: HTTP ${conn.responseCode}")
         }
-        val total = conn.contentLengthLong.takeIf { it > 0 }
-        var downloaded = 0L
+        val total = (conn.contentLengthLong.takeIf { it > 0 }?.let { it + if (append) offset else 0L })
+        var downloaded = offset.takeIf { append } ?: 0L
         conn.inputStream.use { input ->
-            FileOutputStream(partFile).use { output ->
+            FileOutputStream(partFile, append).use { output ->
                 val buffer = ByteArray(64 * 1024)
                 while (true) {
                     val read = input.read(buffer)
@@ -251,11 +299,17 @@ private fun unpack(context: android.content.Context, distro: Distro, archive: Fi
         target.listFiles()?.forEach {
             if (it.name != "root" && it.name != "tmp") it.deleteRecursively()
         }
-        toast("${distro.displayName} will be unpacked on the first session instead")
+        throw e
     }
 }
 
 private class DownloadState {
     @Volatile
     var connection: HttpURLConnection? = null
+
+    @Volatile
+    var releaseTag: String? = null
+
+    @Volatile
+    var lastProgressNanos: Long = 0L
 }

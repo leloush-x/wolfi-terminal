@@ -5,6 +5,8 @@ import android.content.Context
 import android.os.Build
 import android.os.StrictMode
 import com.github.anrwatchdog.ANRWatchDog
+import com.rk.crashhandler.CrashHandler
+import com.rk.crashhandler.logErrorOrExit
 import com.rk.libcommons.application
 import com.rk.resources.Res
 import com.rk.terminal.root.SheveryManager
@@ -32,9 +34,19 @@ class App : Application() {
         super.onCreate()
         application = this
         Res.application = this
+        CrashHandler.previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler(CrashHandler)
         com.rk.settings.SettingsRepository.init(this)
-        TerminalUtils.init(this)
+        TerminalUtils.init(this, loadTypeface = false)
         SheveryManager.init(this)
+
+        val crashLog = File(filesDir, "crash.log")
+        if (crashLog.isFile && crashLog.length() > 0L) {
+            android.util.Log.e(
+                "CrashHandler",
+                "Previous crash report:\n${runCatching { crashLog.readText() }.getOrDefault("Unable to read crash report")}"
+            )
+        }
 
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             getTempDir(this@App).apply {
@@ -44,7 +56,10 @@ class App : Application() {
             }
         }
 
-        ANRWatchDog().start()
+        ANRWatchDog()
+            .setReportMainThreadOnly()
+            .setANRListener { error -> logErrorOrExit(error) }
+            .start()
 
 
         if (BuildConfig.DEBUG) {

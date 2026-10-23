@@ -2,6 +2,7 @@ package com.rk.terminal.ui.screens.terminal
 
 import android.content.res.Configuration
 import android.graphics.BitmapFactory
+import android.util.DisplayMetrics
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -43,6 +44,7 @@ import com.rk.terminal.voice.VoiceMicControl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.max
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -89,7 +91,7 @@ fun TerminalScreen(
             } else {
                 TerminalUtils.hasCustomBackground.value = true
                 if (terminalViewModel.bitmap == null) {
-                    BitmapFactory.decodeFile(context.filesDir.child("background").absolutePath)?.asImageBitmap()?.let {
+                    decodeBackground(context.filesDir.child("background"), context.resources.displayMetrics)?.asImageBitmap()?.let {
                         terminalViewModel.bitmap = it
                     }
                 }
@@ -186,6 +188,22 @@ fun TerminalScreen(
             }
         }
     }
+}
+
+private fun decodeBackground(file: java.io.File, metrics: DisplayMetrics): android.graphics.Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(file.absolutePath, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+    val targetWidth = max(1, metrics.widthPixels)
+    val targetHeight = max(1, metrics.heightPixels)
+    var sample = 1
+    while (bounds.outWidth / (sample * 2) >= targetWidth &&
+        bounds.outHeight / (sample * 2) >= targetHeight
+    ) sample *= 2
+    return BitmapFactory.decodeFile(
+        file.absolutePath,
+        BitmapFactory.Options().apply { inSampleSize = max(1, sample) }
+    )
 }
 
 @Composable

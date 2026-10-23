@@ -58,12 +58,13 @@ object SettingsRepository {
         // read-once
         migrateFont(prefs)
         _terminalFontSizeSp.value = prefs.getFloat(KEY_FONT_SIZE_SP, 13f).coerceIn(6f, 40f)
-        _voiceEnabled.value = prefs.getBoolean(KEY_VOICE_ENABLED, true)
+        // Native Android speech recognition is available immediately by default.
+        _voiceEnabled.value = true
         _keyboardInputMode.value = prefs.getInt(KEY_KEYBOARD_INPUT_MODE, 0)
         _voicePreview.value = prefs.getBoolean(KEY_VOICE_PREVIEW, true)
         _voiceLanguage.value = prefs.getString(KEY_VOICE_LANGUAGE, "") ?: ""
         _voiceTrailingSpace.value = prefs.getBoolean(KEY_VOICE_TRAILING_SPACE, true)
-        _voiceMicButton.value = prefs.getBoolean(KEY_VOICE_MIC_BUTTON, true)
+        _voiceMicButton.value = true
         _keepScreenOn.value = prefs.getBoolean(KEY_KEEP_SCREEN_ON, true)
         _wakeLock.value = prefs.getBoolean(KEY_WAKE_LOCK, false)
         initialized = true
@@ -93,7 +94,7 @@ object SettingsRepository {
     }
 
     // --- Voice ---
-    fun isVoiceEnabled(): Boolean = _voiceEnabled.value
+    fun isVoiceEnabled(): Boolean = true
     fun setVoiceEnabled(value: Boolean) {
         _voiceEnabled.value = value
         runCatching { prefs()?.edit()?.putBoolean(KEY_VOICE_ENABLED, value)?.apply() }
@@ -123,7 +124,7 @@ object SettingsRepository {
         runCatching { prefs()?.edit()?.putBoolean(KEY_VOICE_TRAILING_SPACE, value)?.apply() }
     }
 
-    fun isVoiceMicButtonVisible(): Boolean = _voiceMicButton.value
+    fun isVoiceMicButtonVisible(): Boolean = true
     fun setVoiceMicButtonVisible(value: Boolean) {
         _voiceMicButton.value = value
         runCatching { prefs()?.edit()?.putBoolean(KEY_VOICE_MIC_BUTTON, value)?.apply() }

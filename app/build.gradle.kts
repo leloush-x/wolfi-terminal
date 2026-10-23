@@ -1,4 +1,5 @@
 import java.util.Properties
+import org.gradle.api.GradleException
 
 plugins {
     alias(libs.plugins.android.application)
@@ -27,47 +28,22 @@ android {
             }
             
             val propertiesFile = File(propertiesFilePath)
-            if (propertiesFile.exists() && propertiesFile.length() > 0) {
-                runCatching {
-                    val properties = Properties()
-                    properties.load(propertiesFile.inputStream())
-                    val alias = properties["keyAlias"] as String?
-                    val keyPass = properties["keyPassword"] as String?
-                    val storePass = properties["storePassword"] as String?
-                    
-                    if (!alias.isNullOrBlank() && !keyPass.isNullOrBlank() && !storePass.isNullOrBlank()) {
-                        keyAlias = alias
-                        keyPassword = keyPass
-                        storeFile = if (isGITHUB_ACTION) {
-                            File("/tmp/xed.keystore")
-                        } else {
-                            (properties["storeFile"] as String?)?.let { File(it) }
-                        }
-                        storePassword = storePass
-                    } else {
-                        // Fallback to testkey
-                        storeFile = file(layout.buildDirectory.dir("../testkey.keystore"))
-                        storePassword = "testkey"
-                        keyAlias = "testkey"
-                        keyPassword = "testkey"
-                        println("Signing properties are missing required fields. Using testkey fallback.")
-                    }
-                }.onFailure {
-                    // Fallback to testkey
-                    storeFile = file(layout.buildDirectory.dir("../testkey.keystore"))
-                    storePassword = "testkey"
-                    keyAlias = "testkey"
-                    keyPassword = "testkey"
-                    println("Failed to load signing properties. Using testkey fallback.")
+            if (propertiesFile.isFile && propertiesFile.length() > 0) {
+                val properties = Properties().apply { propertiesFile.inputStream().use(::load) }
+                val alias = properties.getProperty("keyAlias")
+                val keyPass = properties.getProperty("keyPassword")
+                val storePass = properties.getProperty("storePassword")
+                val configuredStore = if (isGITHUB_ACTION) File("/tmp/xed.keystore")
+                    else properties.getProperty("storeFile")?.let(::File)
+                if (!alias.isNullOrBlank() && !keyPass.isNullOrBlank() && !storePass.isNullOrBlank() && configuredStore?.isFile == true) {
+                    keyAlias = alias
+                    keyPassword = keyPass
+                    storePassword = storePass
+                    storeFile = configuredStore
                 }
-            } else {
-                // Fallback to testkey
-                storeFile = file(layout.buildDirectory.dir("../testkey.keystore"))
-                storePassword = "testkey"
-                keyAlias = "testkey"
-                keyPassword = "testkey"
-                println("Signing properties file not found or empty. Using testkey fallback.")
             }
+            // Use the task-time validation below. AGP eagerly configures this
+            // signing config for debug and test tasks as well.
         }
         getByName("debug") {
             storeFile = file(layout.buildDirectory.dir("../testkey.keystore"))
@@ -80,9 +56,9 @@ android {
     
     buildTypes {
         release{
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             isCrunchPngs = false
-            isShrinkResources = false
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
             )
@@ -124,6 +100,36 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = true
+        }
+    }
+}
+
+// AGP configures every signing config for debug and unit-test tasks too. Defer
+// the requirement until a release task is actually requested.
+tasks.configureEach {
+    if (name.contains("Release", ignoreCase = true) || name.contains("BundleRelease", ignoreCase = true)) {
+        doFirst {
+        val isGithubAction = System.getenv("GITHUB_ACTIONS") == "true"
+        val propertiesFile = File(
+            if (isGithubAction) "/tmp/signing.properties"
+            else System.getenv("SIGNING_PROPERTIES") ?: rootProject.file("signing.properties").path
+        )
+        if (!propertiesFile.isFile || propertiesFile.length() == 0L) {
+            throw GradleException(
+            "Release signing properties are required at ${propertiesFile.absolutePath}"
+            )
+        }
+        val properties = Properties().apply { propertiesFile.inputStream().use(::load) }
+        val storeFile = if (isGithubAction) File("/tmp/xed.keystore") else properties.getProperty("storeFile")?.let(::File)
+        if (!(
+            !properties.getProperty("keyAlias").isNullOrBlank() &&
+                !properties.getProperty("keyPassword").isNullOrBlank() &&
+                !properties.getProperty("storePassword").isNullOrBlank() && storeFile?.isFile == true
+        )) {
+            throw GradleException(
+                "Release signing properties must include keyAlias, keyPassword, storePassword, and an existing keystore"
+            )
+        }
         }
     }
 }

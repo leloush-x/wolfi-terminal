@@ -13,9 +13,9 @@ object TerminalUtils {
     var typeface: Typeface = Typeface.MONOSPACE
     var hasCustomBackground = mutableStateOf(false)
 
-    fun init(context: Context) {
+    fun init(context: Context, loadTypeface: Boolean = true) {
         val fontFile = context.filesDir.child("font.ttf")
-        if (fontFile.exists() && fontFile.canRead()) {
+        if (loadTypeface && fontFile.exists() && fontFile.canRead()) {
             typeface = Typeface.createFromFile(fontFile)
         }
         hasCustomBackground.value = context.filesDir.child("background").exists()

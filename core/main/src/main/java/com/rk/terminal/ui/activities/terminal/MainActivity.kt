@@ -15,7 +15,12 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalFocusManager
@@ -43,6 +48,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import androidx.compose.ui.Modifier
 import java.util.Locale
 
 class MainActivity : ComponentActivity() {
@@ -72,6 +78,11 @@ class MainActivity : ComponentActivity() {
         handleViewIntent(intent)
 
         setContent {
+            var previousCrash by remember {
+                mutableStateOf(File(filesDir, "crash.log").takeIf { it.isFile }?.let { file ->
+                    runCatching { file.readText() }.getOrNull()
+                })
+            }
             val systemDark = isSystemInDarkTheme()
             val isDarkThemeActive = if (viewModel.followSystemTheme) systemDark else viewModel.isDarkMode
             KarbonTheme(
@@ -106,6 +117,29 @@ class MainActivity : ComponentActivity() {
                             scriptName = script.name,
                             onDismiss = { pendingScript = null },
                             onRun = { mode, custom -> runScript(script, mode, custom) }
+                        )
+                    }
+
+                    previousCrash?.let { report ->
+                        AlertDialog(
+                            onDismissRequest = {
+                                File(filesDir, "crash.log").delete()
+                                previousCrash = null
+                            },
+                            title = { Text("Previous crash report") },
+                            text = { Text(report, modifier = Modifier.verticalScroll(rememberScrollState())) },
+                            confirmButton = {
+                                TextButton(onClick = {
+                                    val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Crash report", report))
+                                }) { Text("Copy") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = {
+                                    File(filesDir, "crash.log").delete()
+                                    previousCrash = null
+                                }) { Text("Dismiss") }
+                            }
                         )
                     }
                 }
