@@ -27,22 +27,20 @@ android {
             }
             
             val propertiesFile = File(propertiesFilePath)
-            require(propertiesFile.isFile && propertiesFile.length() > 0) {
-                "Release signing properties are required at $propertiesFilePath"
+            if (propertiesFile.isFile && propertiesFile.length() > 0) {
+                val properties = Properties().apply { propertiesFile.inputStream().use(::load) }
+                val alias = properties.getProperty("keyAlias")
+                val keyPass = properties.getProperty("keyPassword")
+                val storePass = properties.getProperty("storePassword")
+                val configuredStore = if (isGITHUB_ACTION) File("/tmp/xed.keystore")
+                    else properties.getProperty("storeFile")?.let(::File)
+                if (!alias.isNullOrBlank() && !keyPass.isNullOrBlank() && !storePass.isNullOrBlank() && configuredStore?.isFile == true) {
+                    keyAlias = alias
+                    keyPassword = keyPass
+                    storePassword = storePass
+                    storeFile = configuredStore
+                }
             }
-            val properties = Properties().apply { propertiesFile.inputStream().use(::load) }
-            val alias = properties.getProperty("keyAlias")
-            val keyPass = properties.getProperty("keyPassword")
-            val storePass = properties.getProperty("storePassword")
-            val configuredStore = if (isGITHUB_ACTION) File("/tmp/xed.keystore")
-                else properties.getProperty("storeFile")?.let(::File)
-            require(!alias.isNullOrBlank() && !keyPass.isNullOrBlank() && !storePass.isNullOrBlank() && configuredStore?.isFile == true) {
-                "Release signing properties must include keyAlias, keyPassword, storePassword, and an existing keystore"
-            }
-            keyAlias = alias!!
-            keyPassword = keyPass!!
-            storePassword = storePass!!
-            storeFile = configuredStore!!
         }
         getByName("debug") {
             storeFile = file(layout.buildDirectory.dir("../testkey.keystore"))
@@ -99,6 +97,30 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = true
+        }
+    }
+}
+
+// AGP configures every signing config for debug and unit-test tasks too. Defer
+// the requirement until a release task is actually requested.
+gradle.taskGraph.whenReady {
+    if (allTasks.any { it.name.contains("Release", ignoreCase = true) }) {
+        val isGithubAction = System.getenv("GITHUB_ACTIONS") == "true"
+        val propertiesFile = File(
+            if (isGithubAction) "/tmp/signing.properties"
+            else System.getenv("SIGNING_PROPERTIES") ?: rootProject.file("signing.properties").path
+        )
+        require(propertiesFile.isFile && propertiesFile.length() > 0L) {
+            "Release signing properties are required at ${propertiesFile.absolutePath}"
+        }
+        val properties = Properties().apply { propertiesFile.inputStream().use(::load) }
+        val storeFile = if (isGithubAction) File("/tmp/xed.keystore") else properties.getProperty("storeFile")?.let(::File)
+        require(
+            !properties.getProperty("keyAlias").isNullOrBlank() &&
+                !properties.getProperty("keyPassword").isNullOrBlank() &&
+                !properties.getProperty("storePassword").isNullOrBlank() && storeFile?.isFile == true
+        ) {
+            "Release signing properties must include keyAlias, keyPassword, storePassword, and an existing keystore"
         }
     }
 }
